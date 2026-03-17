@@ -1,0 +1,3 @@
+[submodule "lvgl/lvgl"]
+	path = lvgl/lvgl
+	url = ./lvgl/lvgl
