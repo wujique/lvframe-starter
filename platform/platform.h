@@ -8,13 +8,16 @@
  * 应用层和 lvframe 只依赖此头文件，不直接引用任何平台细节。
  */
 
-#include "lvgl/lvgl.h"
+#include "lvgl/lvgl/lvgl.h"
 
 /**
  * 平台初始化
  * 负责：创建 lv_display_t、lv_indev_t，启动 lv_tick_inc 定时器
+ *
+ * @param hor_res  屏幕水平分辨率（像素），由各工程 main.c 传入
+ * @param ver_res  屏幕垂直分辨率（像素），由各工程 main.c 传入
  */
-void platform_init(void);
+void platform_init(uint32_t hor_res, uint32_t ver_res);
 
 /**
  * 平台反初始化（释放资源）

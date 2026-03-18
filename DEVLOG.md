@@ -66,3 +66,74 @@ export SDL_RENDER_DRIVER=software
 export LIBGL_ALWAYS_SOFTWARE=1
 ./build/music
 ```
+
+---
+
+## 2026-03-18 — box86 工程实现
+
+### 主要工作
+
+1. **platform 层重构**：`platform_init(void)` 改为 `platform_init(uint32_t hor_res, uint32_t ver_res)`，分辨率由各工程 `main.c` 传入，不再硬编码在平台层。`platform_sdl.c` 改用 LVGL 内置 SDL 驱动（`lv_sdl_window_create` + `lv_sdl_mouse_create`）。
+
+2. **box86 工程完整实现**，目录结构：
+   ```
+   examples/box86/
+   ├── main.c
+   ├── lv_conf.h
+   ├── CMakeLists.txt
+   ├── app_bus.h/c          # 跨线程消息总线（UI ↔ 业务）
+   ├── business.h/c         # 业务逻辑线程 + Shell 命令行接口
+   ├── models/
+   │   ├── device_model.h   # DeviceBase + LightModel + CctLightModel + CurtainModel
+   │   └── device_store.h/c # 设备数据仓库（mutex 保护，快照读取）
+   └── pages/
+       ├── home_page.h/c
+       ├── settings_page.h/c
+       ├── more_settings_page.h/c
+       ├── device_page.h/c          # 设备页调度层
+       ├── device_page_internal.h
+       ├── light_page.c
+       ├── cct_light_page.c
+       └── curtain_page.c
+   ```
+
+3. **设备模型设计**：每种设备独立结构体，`DeviceBase` 作为第一个成员（C 语言继承模式），支持 `void*` 指针数组统一存储。
+
+4. **线程架构**：LVGL 主线程 + 业务逻辑线程，通过 `AppBus`（双向消息队列）通信，UI 通过快照（snapshot）读取数据，避免锁竞争。
+
+5. **Shell 命令行接口**：业务线程读取 stdin，支持 `list / get / add / del / move / set` 命令。
+
+6. **编译修复**：
+   - `lvframe/event_bus.h`：修复 `Event` 类型重复定义冲突
+   - `lvframe/page.h`：加入 `lv_os_private.h` include，提供 `lv_mutex_t` / `lv_thread_t` 类型
+   - `lvframe/swipe_container.h`：修复 lvgl include 路径
+   - `platform/platform.h`：修复 lvgl include 路径
+   - `app_bus.h` / `device_store.h`：加入 `lv_os_private.h` include
+   - `business.c`：修复 `lv_thread_init` 缺少 `name` 参数
+
+7. **UI 文本全部改为英文**（LVGL 默认不支持中文字体）。
+
+**编译命令**：
+```bash
+cd examples/box86
+cmake -B build -DPLATFORM=sdl -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j4
+```
+
+**运行命令**：
+```bash
+SDL_RENDER_DRIVER=software ./build/box86
+```
+
+**Shell 使用示例**：
+```
+list
+add light Bedroom
+add cct_light Kitchen
+add curtain LivingRoom
+set 1 onoffsta 1
+set 2 color_temp 3000
+set 3 command OPEN
+del 2
+move 1 2
+```

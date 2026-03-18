@@ -1,7 +1,7 @@
 #ifndef SWIPE_CONTAINER_H
 #define SWIPE_CONTAINER_H
 
-#include "lvgl.h"
+#include "../lvgl/lvgl/lvgl.h"
 
 typedef struct {
     lv_obj_t* (*create)(lv_obj_t* parent);

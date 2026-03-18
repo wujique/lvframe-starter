@@ -1,45 +1,62 @@
-/**
- * box86/main.c - box86 工程入口
- *
- * 支持平台：
- *   -DPLATFORM=sdl     Ubuntu SDL 模拟器
- *   -DPLATFORM=rk3506  RK3506 Linux
- *   -DPLATFORM=rtos    RTOS（预留）
- */
-
+#define _POSIX_C_SOURCE 200809L
 #include "lvgl/lvgl.h"
 #include "platform/platform.h"
 #include "lvframe/page_manager.h"
 #include "lvframe/event_bus.h"
+#include "app_bus.h"
+#include "models/device_store.h"
+#include "business.h"
+#include "pages/home_page.h"
+#include "pages/more_settings_page.h"
 
-/* TODO: 注册工程页面 */
-/* #include "pages/home_page.h" */
+#define SCREEN_W 480
+#define SCREEN_H 480
+
+static AppBus      g_bus;
+static DeviceStore g_store;
+static Business    g_biz;
 
 int main(void)
 {
     /* 1. 初始化 LVGL */
     lv_init();
 
-    /* 2. 初始化平台（显示驱动、输入驱动、tick） */
-    platform_init();
+    /* 2. 初始化平台 */
+    platform_init(SCREEN_W, SCREEN_H);
 
     /* 3. 初始化 lvframe */
     page_manager_init();
     page_manager_set_cache_size(3);
     event_bus_init();
 
-    /* 4. 注册页面 */
-    /* page_manager_register("HomePage", home_page_create); */
+    /* 4. 初始化应用层 */
+    app_bus_init(&g_bus);
+    device_store_init(&g_store);
 
-    /* 5. 打开首页 */
-    /* page_manager_open("HomePage", NULL); */
+    /* 5. 创建默认设备：一个普通灯 */
+    device_store_add_light(&g_store, "Living Room Light");
+    device_store_add_light(&g_store, "bath Room Light");
+    /* 6. 启动业务逻辑线程 */
+    business_init(&g_biz, &g_bus, &g_store);
+    business_start(&g_biz);
 
-    /* 6. LVGL 主循环 */
+    /* 7. 注册页面 */
+    page_manager_register("Home",        home_page_creator);
+    page_manager_register("MoreSettings", more_settings_page_creator);
+
+    /* 8. 打开首页 */
+    HomePageParams hp = { .bus = &g_bus, .store = &g_store };
+    page_manager_open("Home", &hp);
+
+    /* 9. LVGL 主循环 */
     while (1) {
         lv_timer_handler();
         platform_delay_ms(5);
     }
 
+    business_stop(&g_biz);
+    device_store_deinit(&g_store);
+    app_bus_deinit(&g_bus);
     platform_deinit();
     return 0;
 }

@@ -2,6 +2,7 @@
 #define PAGE_H
 
 #include "../lvgl/lvgl/lvgl.h"
+#include "../lvgl/lvgl/src/osal/lv_os_private.h"
 
 typedef enum {
     PAGE_STATE_NONE = 0,
@@ -14,7 +15,25 @@ typedef enum {
 } PageState;
 
 typedef struct Page Page;
-typedef struct Event Event;
+
+/* ── 事件系统 ── */
+typedef enum {
+    EVENT_LIGHT_STATE_CHANGED,
+    EVENT_DEVICE_ADDED,
+    EVENT_DEVICE_REMOVED,
+    EVENT_NETWORK_DISCONNECTED,
+    EVENT_BATTERY_LOW,
+    EVENT_COUNT
+} EventType;
+
+typedef struct {
+    EventType type;
+    union {
+        struct { int device_id; int is_on; int brightness; } light;
+        struct { int device_id; } device;
+        struct { int level; } battery;
+    } data;
+} Event;
 
 typedef struct {
     void (*on_create)(Page* page, void* params);
@@ -27,19 +46,19 @@ typedef struct {
 } PageLifecycle;
 
 struct Page {
-    lv_obj_t* root;
-    PageState state;
-    void* user_data;
+    lv_obj_t*     root;
+    PageState     state;
+    void*         user_data;
     PageLifecycle lifecycle;
-    int model_valid;  // 0:无效 1:有效
+    int           model_valid;  /* 0:无效 1:有效 */
 };
 
 Page* page_create(PageLifecycle* lifecycle, void* params);
-void page_destroy(Page* page);
+void  page_destroy(Page* page);
 lv_obj_t* page_get_root(Page* page);
-void page_set_user_data(Page* page, void* data);
+void  page_set_user_data(Page* page, void* data);
 void* page_get_user_data(Page* page);
-void page_set_model_valid(Page* page, int valid);
-int page_is_model_valid(Page* page);
+void  page_set_model_valid(Page* page, int valid);
+int   page_is_model_valid(Page* page);
 
-#endif
+#endif /* PAGE_H */
