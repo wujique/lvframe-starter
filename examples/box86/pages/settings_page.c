@@ -1,11 +1,14 @@
 #include "settings_page.h"
 #include "more_settings_page.h"
+#include "lvframe/device/lv_device_model.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include "lvframe/page_manager.h"
 
 typedef struct {
     AppBus*      bus;
-    DeviceStore* store;
+    lv_device_store_t* store;
     lv_obj_t*    btn_network;
     lv_obj_t*    lbl_network;
 } SettingsPageData;
@@ -13,8 +16,8 @@ typedef struct {
 static void on_network_toggle(lv_event_t* e)
 {
     SettingsPageData* d = lv_event_get_user_data(e);
-    SystemModel sys;
-    device_store_snapshot_system(d->store, &sys);
+    lv_system_model_t sys;
+    lv_device_store_snapshot_system(d->store, &sys);
 
     AppMsg msg = {
         .type      = MSG_UI_SET_SYSTEM,
@@ -39,8 +42,11 @@ static void on_more_settings(lv_event_t* e)
     SettingsPageData* d = lv_event_get_user_data(e);
     MoreSettingsPageParams params = { .bus = d->bus, .store = d->store };
     /* 使用 page_manager 跳转 */
-    extern void page_manager_open(const char* name, void* params);
-    page_manager_open("MoreSettings", &params);
+    extern int page_manager_open(const char* name, void* params);
+    int ret = page_manager_open("MoreSettings", &params);
+    if (ret != PAGE_MANAGER_OK) {
+        printf("Failed to open MoreSettings page: error %d\n", ret);
+    }
 }
 
 lv_obj_t* settings_page_create(lv_obj_t* parent, SettingsPageParams* params)
@@ -51,6 +57,8 @@ lv_obj_t* settings_page_create(lv_obj_t* parent, SettingsPageParams* params)
 
     lv_obj_t* cont = lv_obj_create(parent);
     lv_obj_set_size(cont, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_scrollbar_mode(cont, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_user_data(cont, d);
     lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -78,8 +86,8 @@ void settings_page_refresh(lv_obj_t* page)
 {
     SettingsPageData* d = lv_obj_get_user_data(page);
     if (!d) return;
-    SystemModel sys;
-    device_store_snapshot_system(d->store, &sys);
+    lv_system_model_t sys;
+    lv_device_store_snapshot_system(d->store, &sys);
     if (sys.network_enabled) {
         lv_obj_set_style_bg_color(d->btn_network, lv_color_hex(0xFFB300), 0);
         lv_label_set_text(d->lbl_network, "Network: ON");

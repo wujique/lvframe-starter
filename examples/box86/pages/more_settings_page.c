@@ -5,7 +5,7 @@
 
 typedef struct {
     AppBus*      bus;
-    DeviceStore* store;
+    lv_device_store_t* store;
 } MoreSettingsData;
 
 static void on_back_clicked(lv_event_t* e)

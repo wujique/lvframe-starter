@@ -6,12 +6,13 @@
  */
 
 #include "device_page.h"
+#include "lvframe/device/lv_device_model.h"
 
 typedef struct {
     AppBus*      bus;
-    DeviceStore* store;
+    lv_device_store_t* store;
     int          device_id;
-    DeviceType   type;
+    lv_device_type_t   type;
 
     lv_obj_t*    lbl_name;
     lv_obj_t*    lbl_status;
@@ -28,5 +29,15 @@ typedef struct {
     lv_obj_t*    btn_close;
     lv_obj_t*    btn_stop;
 } DevicePageData;
+
+/* 各设备页构建/刷新函数声明 */
+void light_page_build(lv_obj_t* root, DevicePageData* d);
+void light_page_refresh(DevicePageData* d);
+
+void cct_light_page_build(lv_obj_t* root, DevicePageData* d);
+void cct_light_page_refresh(DevicePageData* d);
+
+void curtain_page_build(lv_obj_t* root, DevicePageData* d);
+void curtain_page_refresh(DevicePageData* d);
 
 #endif /* DEVICE_PAGE_INTERNAL_H */

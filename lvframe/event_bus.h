@@ -5,7 +5,7 @@
 
 /* EventType 和 Event 均定义在 page.h 中，此处直接使用 */
 
-#define MAX_EVENT_TYPES          EVENT_COUNT
+#define MAX_EVENT_TYPES          128   /* 必须 > EVENT_USER_START + 应用自定义事件数量 */
 #define MAX_SUBSCRIBERS_PER_EVENT 10
 #define MAX_EVENT_QUEUE          50
 
@@ -26,5 +26,6 @@ void event_bus_unsubscribe(Page* page, EventType event_type);
 void event_bus_unsubscribe_all(Page* page);
 void event_bus_trigger(Event* event);
 void event_bus_process(void);
+void event_bus_deinit(void);
 
 #endif /* EVENT_BUS_H */

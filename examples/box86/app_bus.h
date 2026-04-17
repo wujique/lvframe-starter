@@ -11,9 +11,11 @@
  * 所有接口线程安全。
  */
 
-#include "models/device_model.h"
+#include "lvframe/device/lv_device_model.h"
 #include "lvgl/lvgl.h"
 #include "lvgl/src/osal/lv_os_private.h"
+
+#define EVENT_APP_MESSAGE  (EVENT_USER_START + 0)
 
 /* ── 消息类型 ── */
 typedef enum {

@@ -1,5 +1,6 @@
 #include "page.h"
 #include <stdlib.h>
+#include <stdio.h>
 
 Page* page_create(PageLifecycle* lifecycle, void* params) {
     Page* page = (Page*)calloc(1, sizeof(Page));
@@ -7,6 +8,8 @@ Page* page_create(PageLifecycle* lifecycle, void* params) {
     
     page->root = lv_obj_create(lv_scr_act());
     lv_obj_add_flag(page->root, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_scrollbar_mode(page->root, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_clear_flag(page->root, LV_OBJ_FLAG_SCROLLABLE);
     
     if (lifecycle) {
         page->lifecycle = *lifecycle;
@@ -14,6 +17,8 @@ Page* page_create(PageLifecycle* lifecycle, void* params) {
     
     page->state = PAGE_STATE_CREATED;
     page->model_valid = 1;
+    
+    printf("Page: created page=%p, root=%p, state=CREATED\n", page, page->root);
     
     if (page->lifecycle.on_create) {
         page->lifecycle.on_create(page, params);
@@ -24,6 +29,8 @@ Page* page_create(PageLifecycle* lifecycle, void* params) {
 
 void page_destroy(Page* page) {
     if (!page) return;
+    
+    printf("Page: destroying page=%p, root=%p, state=%d\n", page, page->root, page->state);
     
     if (page->lifecycle.on_destroy) {
         page->lifecycle.on_destroy(page);
@@ -49,7 +56,10 @@ void* page_get_user_data(Page* page) {
 }
 
 void page_set_model_valid(Page* page, int valid) {
-    if (page) page->model_valid = valid;
+    if (page) {
+        printf("Page: set model valid page=%p, valid=%d (was %d)\n", page, valid, page->model_valid);
+        page->model_valid = valid;
+    }
 }
 
 int page_is_model_valid(Page* page) {

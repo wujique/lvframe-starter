@@ -1,10 +1,11 @@
 #define _POSIX_C_SOURCE 200809L
+#include <stdio.h>
 #include "lvgl/lvgl.h"
 #include "platform/platform.h"
 #include "lvframe/page_manager.h"
 #include "lvframe/event_bus.h"
 #include "app_bus.h"
-#include "models/device_store.h"
+#include "lvframe/device/lv_device_store.h"
 #include "business.h"
 #include "pages/home_page.h"
 #include "pages/more_settings_page.h"
@@ -13,7 +14,7 @@
 #define SCREEN_H 480
 
 static AppBus      g_bus;
-static DeviceStore g_store;
+static lv_device_store_t g_store;
 static Business    g_biz;
 
 int main(void)
@@ -23,22 +24,26 @@ int main(void)
 
     /* 2. 初始化平台 */
     platform_init(SCREEN_W, SCREEN_H);
+    printf("[main] Platform initialized\n");
 
     /* 3. 初始化 lvframe */
     page_manager_init();
     page_manager_set_cache_size(3);
     event_bus_init();
+    printf("[main] Event bus initialized\n");
 
     /* 4. 初始化应用层 */
     app_bus_init(&g_bus);
-    device_store_init(&g_store);
+    printf("[main] AppBus initialized\n");
+    lv_device_store_init(&g_store);
 
     /* 5. 创建默认设备：一个普通灯 */
-    device_store_add_light(&g_store, "Living Room Light");
-    device_store_add_light(&g_store, "bath Room Light");
+    lv_device_store_add_light(&g_store, "Living Room Light");
+    lv_device_store_add_light(&g_store, "bath Room Light");
     /* 6. 启动业务逻辑线程 */
     business_init(&g_biz, &g_bus, &g_store);
     business_start(&g_biz);
+    printf("[main] Business thread started\n");
 
     /* 7. 注册页面 */
     page_manager_register("Home",        home_page_creator);
@@ -46,8 +51,14 @@ int main(void)
 
     /* 8. 打开首页 */
     HomePageParams hp = { .bus = &g_bus, .store = &g_store };
-    page_manager_open("Home", &hp);
+    int ret = page_manager_open("Home", &hp);
+    if (ret != PAGE_MANAGER_OK) {
+        printf("Failed to open Home page: error %d\n", ret);
+    } else {
+        printf("[main] Home page opened successfully\n");
+    }
 
+    printf("[main] Entering main loop\n");
     /* 9. LVGL 主循环 */
     while (1) {
         lv_timer_handler();
@@ -55,7 +66,7 @@ int main(void)
     }
 
     business_stop(&g_biz);
-    device_store_deinit(&g_store);
+    lv_device_store_deinit(&g_store);
     app_bus_deinit(&g_bus);
     platform_deinit();
     return 0;

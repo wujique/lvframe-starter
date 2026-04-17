@@ -23,7 +23,8 @@ typedef enum {
     EVENT_DEVICE_REMOVED,
     EVENT_NETWORK_DISCONNECTED,
     EVENT_BATTERY_LOW,
-    EVENT_COUNT
+    EVENT_COUNT,
+    EVENT_USER_START = 100     /* 应用层自定义事件从此开始 */
 } EventType;
 
 typedef struct {
@@ -32,6 +33,7 @@ typedef struct {
         struct { int device_id; int is_on; int brightness; } light;
         struct { int device_id; } device;
         struct { int level; } battery;
+        struct { int msg_type; int device_id; char field[32]; int value; int new_pos; } user;
     } data;
 } Event;
 

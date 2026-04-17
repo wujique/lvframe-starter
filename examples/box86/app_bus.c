@@ -1,5 +1,6 @@
 #include "app_bus.h"
 #include <string.h>
+#include <stdio.h>
 
 static void queue_init(AppQueue* q)
 {
@@ -18,6 +19,7 @@ static int queue_push(AppQueue* q, const AppMsg* msg)
 {
     lv_mutex_lock(&q->mutex);
     if (q->count >= APP_BUS_QUEUE_SIZE) {
+        printf("[AppBus] queue full!\n");
         lv_mutex_unlock(&q->mutex);
         return -1;
     }
@@ -62,7 +64,10 @@ int app_bus_send_ui(AppBus* bus, const AppMsg* msg)
 
 int app_bus_send_biz(AppBus* bus, const AppMsg* msg)
 {
-    return queue_push(&bus->biz_to_ui, msg);
+    printf("[AppBus] send_biz: type=%d, device_id=%d\n", msg->type, msg->device_id);
+    int ret = queue_push(&bus->biz_to_ui, msg);
+    printf("[AppBus] queue_push returned %d\n", ret);
+    return ret;
 }
 
 int app_bus_recv_ui(AppBus* bus, AppMsg* out)
@@ -72,5 +77,9 @@ int app_bus_recv_ui(AppBus* bus, AppMsg* out)
 
 int app_bus_recv_biz(AppBus* bus, AppMsg* out)
 {
-    return queue_pop(&bus->biz_to_ui, out);
+    int ret = queue_pop(&bus->biz_to_ui, out);
+    if (ret) {
+        printf("[AppBus] recv_biz: got message type=%d, device_id=%d\n", out->type, out->device_id);
+    }
+    return ret;
 }

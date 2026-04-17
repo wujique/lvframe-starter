@@ -1,60 +1,115 @@
 #include "device_page_internal.h"
+#include "lvframe/event_bus.h"
+#include "app_bus.h"
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-/* 各设备页构建/刷新函数声明 */
-lv_obj_t* light_page_build(lv_obj_t* tile, DevicePageData* d);
-void      light_page_refresh(lv_obj_t* tile, DevicePageData* d);
-
-lv_obj_t* cct_light_page_build(lv_obj_t* tile, DevicePageData* d);
-void      cct_light_page_refresh(lv_obj_t* tile, DevicePageData* d);
-
-lv_obj_t* curtain_page_build(lv_obj_t* tile, DevicePageData* d);
-void      curtain_page_refresh(lv_obj_t* tile, DevicePageData* d);
-
-lv_obj_t* device_page_create(lv_obj_t* tile, DevicePageParams* params)
+static void on_create(Page* page, void* params)
 {
-    DevicePageData* d = calloc(1, sizeof(DevicePageData));
-    d->bus       = params->bus;
-    d->store     = params->store;
-    d->device_id = params->device_id;
-
-    /* 读公共基础信息确定类型 */
-    DeviceBase bases[MAX_DEVICES];
-    int order[MAX_DEVICES], count = 0;
-    device_store_snapshot_base(params->store, bases, order, &count);
-    for (int i = 0; i < count; i++) {
-        if (bases[i].id == params->device_id) { d->type = bases[i].type; break; }
+    DevicePageParams* p = (DevicePageParams*)params;
+    if (!p || !p->store) {
+        page_set_model_valid(page, 0);
+        return;
     }
 
-    lv_obj_set_user_data(tile, d);
+    DevicePageData* d = calloc(1, sizeof(DevicePageData));
+    if (!d) {
+        page_set_model_valid(page, 0);
+        return;
+    }
+
+    d->bus = p->bus;
+    d->store = p->store;
+    d->device_id = p->device_id;
+
+    lv_device_base_t bases[LV_MAX_DEVICES];
+    int order[LV_MAX_DEVICES], count = 0;
+    lv_device_store_snapshot_base(d->store, bases, order, &count);
+    for (int i = 0; i < count; i++) {
+        if (bases[i].id == d->device_id) {
+            d->type = bases[i].type;
+            break;
+        }
+    }
+
+    page_set_user_data(page, d);
+
+    lv_obj_t* root = page_get_root(page);
+    switch (d->type) {
+    case LV_DEVICE_TYPE_CCT:
+        cct_light_page_build(root, d);
+        break;
+    case LV_DEVICE_TYPE_CURTAIN:
+        curtain_page_build(root, d);
+        break;
+    default:
+        light_page_build(root, d);
+        break;
+    }
 
     switch (d->type) {
-    case DEVICE_TYPE_CCT:     cct_light_page_build(tile, d); break;
-    case DEVICE_TYPE_CURTAIN: curtain_page_build(tile, d);   break;
-    default:                  light_page_build(tile, d);     break;
+    case LV_DEVICE_TYPE_CCT:
+        cct_light_page_refresh(d);
+        break;
+    case LV_DEVICE_TYPE_CURTAIN:
+        curtain_page_refresh(d);
+        break;
+    default:
+        light_page_refresh(d);
+        break;
     }
 
-    device_page_refresh(tile);
-    return tile;
+    event_bus_subscribe(page, EVENT_APP_MESSAGE);
+    printf("[DevicePage] on_create completed, device_id=%d, type=%d\n", d->device_id, d->type);
 }
 
-void device_page_refresh(lv_obj_t* tile)
+static void on_event(Page* page, Event* event)
 {
-    DevicePageData* d = lv_obj_get_user_data(tile);
+    if (event->type != EVENT_APP_MESSAGE) return;
+
+    DevicePageData* d = page_get_user_data(page);
     if (!d) return;
 
-    switch (d->type) {
-    case DEVICE_TYPE_CCT:     cct_light_page_refresh(tile, d); break;
-    case DEVICE_TYPE_CURTAIN: curtain_page_refresh(tile, d);   break;
-    default:                  light_page_refresh(tile, d);     break;
+    if (event->data.user.device_id != d->device_id) return;
+
+    switch (event->data.user.msg_type) {
+    case MSG_BIZ_REFRESH:
+        switch (d->type) {
+        case LV_DEVICE_TYPE_CCT:
+            cct_light_page_refresh(d);
+            break;
+        case LV_DEVICE_TYPE_CURTAIN:
+            curtain_page_refresh(d);
+            break;
+        default:
+            light_page_refresh(d);
+            break;
+        }
+        break;
+    case MSG_BIZ_DEL_DEVICE:
+        page_set_model_valid(page, 0);
+        break;
+    default:
+        break;
     }
 }
 
-void device_page_destroy(lv_obj_t* tile)
+static void on_destroy(Page* page)
 {
-    DevicePageData* d = lv_obj_get_user_data(tile);
+    DevicePageData* d = page_get_user_data(page);
     if (d) {
+        event_bus_unsubscribe(page, EVENT_APP_MESSAGE);
         free(d);
-        lv_obj_set_user_data(tile, NULL);
     }
+}
+
+Page* device_page_create(DevicePageParams* params)
+{
+    static PageLifecycle lc = {
+        .on_create  = on_create,
+        .on_destroy = on_destroy,
+        .on_event   = on_event,
+    };
+    return page_create(&lc, params);
 }

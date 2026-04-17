@@ -3,11 +3,11 @@
 
 #include "lvgl/lvgl.h"
 #include "../app_bus.h"
-#include "../models/device_store.h"
+#include "lvframe/device/lv_device_store.h"
 
 typedef struct {
     AppBus*      bus;
-    DeviceStore* store;
+    lv_device_store_t* store;
 } MoreSettingsPageParams;
 
 /* 供 page_manager 注册使用 */

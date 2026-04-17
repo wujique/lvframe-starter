@@ -39,6 +39,7 @@ add_library(lvframe STATIC
     ${ROOT_DIR}/lvframe/event_bus.c
     ${ROOT_DIR}/lvframe/swipe_container.c
     ${ROOT_DIR}/lvframe/impl/tileview_impl.c
+    ${ROOT_DIR}/lvframe/device/lv_device_store.c
 )
 target_include_directories(lvframe PUBLIC ${ROOT_DIR})
 target_link_libraries(lvframe PUBLIC lvgl)
@@ -47,10 +48,18 @@ target_link_libraries(lvframe PUBLIC lvgl)
 file(GLOB_RECURSE APP_SOURCES
     ${CMAKE_SOURCE_DIR}/main.c
     ${CMAKE_SOURCE_DIR}/app_bus.c
+    ${CMAKE_SOURCE_DIR}/app_bus_adapter.c
     ${CMAKE_SOURCE_DIR}/business.c
     ${CMAKE_SOURCE_DIR}/pages/*.c
     ${CMAKE_SOURCE_DIR}/models/*.c
 )
+
+# 排除旧的 device_store.c，已迁移到 lvframe/device/
+list(REMOVE_ITEM APP_SOURCES "${CMAKE_SOURCE_DIR}/models/device_store.c")
+# 排除 old 目录下的所有源文件
+list(FILTER APP_SOURCES EXCLUDE REGEX "/old/")
+# 排除旧的设备页组件实现
+list(REMOVE_ITEM APP_SOURCES "${CMAKE_SOURCE_DIR}/pages/device_page_component.c")
 
 add_executable(box86 ${APP_SOURCES})
 target_include_directories(box86 PRIVATE ${ROOT_DIR} ${CMAKE_SOURCE_DIR})
