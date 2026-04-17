@@ -36,6 +36,19 @@ static void on_create(Page* page, void* params)
     page_set_user_data(page, d);
 
     lv_obj_t* root = page_get_root(page);
+
+    /* 按设备类型设置不同的浅色背景 */
+    static const lv_color_t bg_colors[] = {
+        [LV_DEVICE_TYPE_LIGHT]   = {.red = 0xFF, .green = 0xFD, .blue = 0xE7}, /* 暖黄：普通灯   #FFFDE7 */
+        [LV_DEVICE_TYPE_CCT]     = {.red = 0xE3, .green = 0xF2, .blue = 0xFD}, /* 浅蓝：色温灯   #E3F2FD */
+        [LV_DEVICE_TYPE_CURTAIN] = {.red = 0xE8, .green = 0xF5, .blue = 0xE9}, /* 浅绿：窗帘     #E8F5E9 */
+    };
+    lv_color_t bg = lv_color_hex(0xF5F5F5); /* 浅灰：默认 */
+    if ((int)d->type < (int)(sizeof(bg_colors) / sizeof(bg_colors[0])))
+        bg = bg_colors[d->type];
+    lv_obj_set_style_bg_color(root, bg, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, LV_PART_MAIN);
+
     switch (d->type) {
     case LV_DEVICE_TYPE_CCT:
         cct_light_page_build(root, d);
