@@ -10,6 +10,9 @@ Page* page_create(PageLifecycle* lifecycle, void* params) {
     lv_obj_add_flag(page->root, LV_OBJ_FLAG_HIDDEN);
     lv_obj_set_scrollbar_mode(page->root, LV_SCROLLBAR_MODE_OFF);
     lv_obj_clear_flag(page->root, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_pad_all(page->root, 0, LV_PART_MAIN);
+    lv_obj_set_style_border_width(page->root, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(page->root, 0, LV_PART_MAIN);
     
     if (lifecycle) {
         page->lifecycle = *lifecycle;

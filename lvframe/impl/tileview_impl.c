@@ -8,6 +8,10 @@
 static lv_obj_t* tileview_create(lv_obj_t* parent) {
     lv_obj_t* tv = lv_tileview_create(parent);
 
+    lv_obj_set_style_pad_all(tv, 0, LV_PART_MAIN);
+    lv_obj_set_style_border_width(tv, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(tv, 0, LV_PART_MAIN);
+
     /* 存储 ops 指针到 user_data，供 swipe_container 调度层使用 */
     extern SwipeContainerOps g_tileview_ops;
     lv_obj_set_user_data(tv, &g_tileview_ops);
@@ -31,8 +35,10 @@ static lv_obj_t* tileview_add_page(lv_obj_t* container, int index) {
     lv_obj_set_user_data(tile, (void*)(uintptr_t)1);
     lv_obj_set_scrollbar_mode(tile, LV_SCROLLBAR_MODE_OFF);
     lv_obj_clear_flag(tile, LV_OBJ_FLAG_SCROLLABLE);
-    /* 让触摸事件从 tile 冒泡到 tileview，再冒泡到 root，
-     * 以支持 home_page 在 root 上监听垂直拖拽手势 */
+    lv_obj_set_style_pad_all(tile, 0, LV_PART_MAIN);
+    lv_obj_set_style_border_width(tile, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(tile, 0, LV_PART_MAIN);
+    /* 让触摸事件从 tile 冒泡到 tileview，再冒泡到 root */
     lv_obj_add_flag(tile, LV_OBJ_FLAG_EVENT_BUBBLE);
     return tile;
 }

@@ -103,6 +103,9 @@ static void on_event(Page* page, Event* event)
             lv_obj_t* dp_root = page_get_root(device_page);
             lv_obj_set_parent(dp_root, tile);
             lv_obj_set_size(dp_root, LV_PCT(100), LV_PCT(100));
+            lv_obj_set_style_pad_all(dp_root, 0, LV_PART_MAIN);
+            lv_obj_set_style_border_width(dp_root, 0, LV_PART_MAIN);
+            lv_obj_set_style_radius(dp_root, 0, LV_PART_MAIN);
             lv_obj_clear_flag(dp_root, LV_OBJ_FLAG_HIDDEN);
             /* device_page root 的触摸事件需要能冒泡到 tile → tileview → home root */
             lv_obj_add_flag(dp_root, LV_OBJ_FLAG_EVENT_BUBBLE);
@@ -148,6 +151,9 @@ static void on_event(Page* page, Event* event)
             if (device_page) {
                 lv_obj_t* dp_root = page_get_root(device_page);
                 lv_obj_set_parent(dp_root, tile);
+                lv_obj_set_style_pad_all(dp_root, 0, LV_PART_MAIN);
+                lv_obj_set_style_border_width(dp_root, 0, LV_PART_MAIN);
+                lv_obj_set_style_radius(dp_root, 0, LV_PART_MAIN);
                 lv_obj_clear_flag(dp_root, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(dp_root, LV_OBJ_FLAG_EVENT_BUBBLE);
                 d->device_pages[d->device_count] = device_page;
@@ -317,6 +323,9 @@ static void on_create(Page* page, void* params)
         if (device_page) {
             lv_obj_t* dp_root = page_get_root(device_page);
             lv_obj_set_parent(dp_root, tile);
+            lv_obj_set_style_pad_all(dp_root, 0, LV_PART_MAIN);
+            lv_obj_set_style_border_width(dp_root, 0, LV_PART_MAIN);
+            lv_obj_set_style_radius(dp_root, 0, LV_PART_MAIN);
             lv_obj_clear_flag(dp_root, LV_OBJ_FLAG_HIDDEN);
             /* 允许触摸事件冒泡到 tile → tileview → root */
             lv_obj_add_flag(dp_root, LV_OBJ_FLAG_EVENT_BUBBLE);
