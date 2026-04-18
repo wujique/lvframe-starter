@@ -31,13 +31,20 @@ void light_page_build(lv_obj_t* root, DevicePageData* d)
     lv_obj_set_size(d->btn_toggle, 120, 50);
     lv_obj_align(d->btn_toggle, LV_ALIGN_CENTER, 0, 0);
     lv_obj_t* lbl = lv_label_create(d->btn_toggle);
-    lv_label_set_text(lbl, "On/Off");
+    lv_label_set_text(lbl, "开/关");
     lv_obj_center(lbl);
     lv_obj_add_event_cb(d->btn_toggle, on_toggle, LV_EVENT_CLICKED, d);
 
     d->lbl_status = lv_label_create(root);
     lv_label_set_text(d->lbl_status, "---");
     lv_obj_align(d->lbl_status, LV_ALIGN_CENTER, 0, 60);
+
+    /* 汉字显示测试 */
+    lv_obj_t* lbl_test = lv_label_create(root);
+    lv_label_set_text(lbl_test, "汉字测试：普通灯控制面板\n亮度调节 · 开关状态 · 场景模式");
+    lv_obj_set_width(lbl_test, LV_PCT(90));
+    lv_label_set_long_mode(lbl_test, LV_LABEL_LONG_WRAP);
+    lv_obj_align(lbl_test, LV_ALIGN_BOTTOM_MID, 0, -20);
 }
 
 void light_page_refresh(DevicePageData* d)
@@ -45,5 +52,5 @@ void light_page_refresh(DevicePageData* d)
     lv_light_model_t snap;
     if (lv_device_store_snapshot_light(d->store, d->device_id, &snap) < 0) return;
     lv_label_set_text(d->lbl_name, snap.base.name);
-    lv_label_set_text(d->lbl_status, snap.onoffsta ? "ON" : "OFF");
+    lv_label_set_text(d->lbl_status, snap.onoffsta ? "已开启" : "已关闭");
 }
