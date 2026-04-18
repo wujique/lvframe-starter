@@ -28,9 +28,19 @@ include_directories(${ROOT_DIR})
 add_subdirectory(${LVGL_DIR} ${CMAKE_BINARY_DIR}/lvgl_build)
 
 # ── platform 库 ───────────────────────────────────────
+# sdl 平台：使用 str/platform/sdl（模拟器，通用）
+# 其他平台（如 rk3506）：使用应用自有的 platform/<target>/
 add_library(platform STATIC)
 target_include_directories(platform PUBLIC ${ROOT_DIR})
-add_subdirectory(${ROOT_DIR}/platform/${PLATFORM} ${CMAKE_BINARY_DIR}/platform_build)
+if(PLATFORM STREQUAL "sdl")
+    add_subdirectory(${ROOT_DIR}/platform/sdl ${CMAKE_BINARY_DIR}/platform_build)
+else()
+    set(APP_PLATFORM_DIR "${CMAKE_SOURCE_DIR}/platform/${PLATFORM}")
+    if(NOT EXISTS "${APP_PLATFORM_DIR}")
+        message(FATAL_ERROR "Platform '${PLATFORM}' not found in ${APP_PLATFORM_DIR}")
+    endif()
+    add_subdirectory(${APP_PLATFORM_DIR} ${CMAKE_BINARY_DIR}/platform_build)
+endif()
 
 # ── lvframe 库 ────────────────────────────────────────
 add_library(lvframe STATIC

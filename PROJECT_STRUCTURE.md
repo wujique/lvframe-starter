@@ -4,9 +4,12 @@
 
 本目录是一个基于 LVGL 的嵌入式 UI 开发工作区。包含：
 - **lvframe**：自研的 LVGL UI 框架（页面管理、事件总线、设备管理等）
-- **platform**：平台适配层，屏蔽不同硬件/OS 差异
+- **platform**：平台适配层，仅支持 SDL 模拟器平台（用于 PC 端开发调试）
 - **examples**：基于 lvframe 开发的具体 UI 应用工程（多工程并存）
 - **lvgl**：LVGL 源码（v9.4，手动拷贝到此目录）
+
+> **平台策略**：`str/platform/` 只维护 SDL 模拟器平台。其他运行平台（如 RK3506 Linux）
+> 在各 UI 应用目录下的 `platform/<target>/` 中单独实现，与具体应用强绑定，互不干扰。
 
 ---
 
@@ -19,38 +22,38 @@
 │   ├── page_manager.h / page_manager.c
 │   ├── event_bus.h / event_bus.c
 │   ├── swipe_container.h / swipe_container.c
-│   ├── device_manager.h / device_manager.c
 │   ├── impl/
 │   │   └── tileview_impl.c
+│   ├── device/
+│   │   ├── lv_device_model.h
+│   │   ├── lv_device_store.h / lv_device_store.c
 │   ├── README.md
 │   ├── 详细设计文档.md
 │   └── lvgl框架.md
 │
-├── platform/                       # 平台适配层（HAL）
+├── platform/                       # 平台适配层（仅 SDL 模拟器）
 │   ├── platform.h                  # 统一平台接口定义
-│   ├── sdl/                        # SDL 平台（Ubuntu PC 模拟器）
-│   │   ├── platform_sdl.c          # SDL 显示/输入驱动 + LVGL tick
-│   │   └── CMakeLists.txt
-│   ├── rk3506/                     # RK3506 Linux 平台
-│   │   ├── platform_rk3506.c       # framebuffer/DRM 显示 + 触摸输入驱动
-│   │   └── CMakeLists.txt
-│   └── rtos/                       # RTOS 平台（预留，未来扩展）
-│       ├── platform_rtos.c
+│   └── sdl/                        # SDL 平台（Ubuntu PC 模拟器）
+│       ├── platform_sdl.c          # SDL 显示/输入驱动 + LVGL tick
 │       └── CMakeLists.txt
 │
 ├── lvgl/                           # LVGL v9.4 源码（手动拷贝）
 │   └── ...
 │
 ├── examples/                       # 应用工程目录（多工程并存）
-│   ├── box86/                      # box86 工程（RK3506 Linux UI 程序）
+│   ├── box86/                      # box86 工程（智能家居中控屏）
 │   │   ├── main.c                  # 应用入口
 │   │   ├── pages/                  # 页面实现
 │   │   ├── models/                 # 数据模型
-│   │   ├── assets/                 # 图片、字体等资源（工程独立管理）
+│   │   ├── assets/                 # 图片、字体等资源
+│   │   ├── platform/               # 应用自有平台支持
+│   │   │   └── rk3506/             # RK3506 Linux 平台实现
+│   │   │       ├── platform_rk3506.c
+│   │   │       └── CMakeLists.txt
 │   │   └── CMakeLists.txt
 │   └── <other_app>/                # 其他工程（结构相同）
 │
-├── CMakeLists.txt                  # 顶层构建文件
+├── CMakeLists.txt                  # 顶层构建文件（提示入口）
 └── PROJECT_STRUCTURE.md            # 本文档
 ```
 
@@ -71,15 +74,18 @@
 - 系统 tick 提供（`lv_tick_inc`）
 - 平台初始化/反初始化接口
 
-三个平台实现：
+**str/platform/ 只提供 SDL 模拟器平台**，供所有工程在 PC 上开发调试使用。
 
-| 子目录 | 平台 | 用途 |
-|--------|------|------|
-| `sdl/` | Ubuntu + SDL2 | PC 端开发调试，模拟目标设备 UI |
-| `rk3506/` | RK3506 + Linux | 目标硬件，framebuffer 或 DRM 驱动 |
-| `rtos/` | RTOS（预留） | 未来移植到 RTOS 平台时扩展 |
+其他目标平台由各应用工程在自己的 `platform/<target>/` 目录下实现，例如：
+
+| 位置 | 平台 | 用途 |
+|------|------|------|
+| `str/platform/sdl/` | Ubuntu + SDL2 | PC 端开发调试，模拟目标设备 UI |
+| `examples/box86/platform/rk3506/` | RK3506 + Linux | box86 应用在目标硬件上运行 |
 
 切换平台只需在编译时传入 `-DPLATFORM=sdl` 或 `-DPLATFORM=rk3506` 参数。
+- `sdl`：链接 `str/platform/sdl/`
+- `rk3506`：链接应用目录下的 `platform/rk3506/`
 
 ### lvgl/
 LVGL v9.4 源码目录，由开发者手动下载并拷贝到此处。
@@ -93,6 +99,7 @@ LVGL v9.4 源码目录，由开发者手动下载并拷贝到此处。
 - `pages/`：各页面实现（基于 lvframe 的 `Page` / `PageLifecycle`）
 - `models/`：业务数据模型（与 UI 解耦）
 - `assets/`：图片、字体等静态资源（每个工程独立管理）
+- `platform/`：应用自有平台支持（非 SDL 的目标平台在此实现）
 - `CMakeLists.txt`：工程构建文件，通过 `PLATFORM` 参数决定链接哪个平台实现
 
 ---
@@ -103,17 +110,14 @@ LVGL v9.4 源码目录，由开发者手动下载并拷贝到此处。
 
 ```bash
 # box86 工程 —— 在 PC 上用 SDL 模拟器运行
-cmake -B build -DAPP=box86 -DPLATFORM=sdl
-cmake --build build
-./build/box86
+cmake -DPLATFORM=sdl -S examples/box86 -B examples/box86/build
+cmake --build examples/box86/build
+./examples/box86/build/box86
 
 # box86 工程 —— 交叉编译到 RK3506 Linux
-cmake -B build_rk -DAPP=box86 -DPLATFORM=rk3506 -DCMAKE_TOOLCHAIN_FILE=rk3506.cmake
-cmake --build build_rk
-
-# box86 工程 —— 未来编译到 RTOS（预留）
-cmake -B build_rtos -DAPP=box86 -DPLATFORM=rtos -DCMAKE_TOOLCHAIN_FILE=rtos.cmake
-cmake --build build_rtos
+cmake -DPLATFORM=rk3506 -DCMAKE_TOOLCHAIN_FILE=rk3506.cmake \
+      -S examples/box86 -B examples/box86/build_rk
+cmake --build examples/box86/build_rk
 ```
 
 ---
@@ -127,8 +131,6 @@ v9.x 相比 v7/v8 的主要变化（影响本项目的部分）：
 - 输入驱动 API 改为 `lv_indev_create()` / `lv_indev_set_read_cb()`
 - `lv_task_t` 改为 `lv_timer_t`
 - `lv_mutex_t` 线程 API 有所调整
-
-> 注意：lvframe 现有代码基于 v7 API 编写，迁移到 v9.4 时需要同步更新 platform 层和 lvframe 内部的 LVGL API 调用。
 
 ---
 
