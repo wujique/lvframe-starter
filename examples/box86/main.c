@@ -9,6 +9,14 @@
 #include "business.h"
 #include "pages/home_page.h"
 #include "pages/more_settings_page.h"
+#include "config.h"
+
+/* 字体引擎头文件 */
+#if LV_USE_FREETYPE
+#  include "lvgl/lvgl/src/libs/freetype/lv_freetype.h"
+#elif LV_USE_TINY_TTF
+#  include "lvgl/lvgl/src/libs/tiny_ttf/lv_tiny_ttf.h"
+#endif
 
 #define SCREEN_W 480
 #define SCREEN_H 480
@@ -16,6 +24,9 @@
 static AppBus      g_bus;
 static lv_device_store_t g_store;
 static Business    g_biz;
+
+/* 全局中文字体句柄 */
+static lv_font_t  *g_font_cn = NULL;
 
 int main(void)
 {
@@ -25,6 +36,28 @@ int main(void)
     /* 2. 初始化平台 */
     platform_init(SCREEN_W, SCREEN_H);
     printf("[main] Platform initialized\n");
+
+    /* 3. 加载中文字体，设为 LVGL 默认字体 */
+#if LV_USE_FREETYPE
+    lv_freetype_init(LV_FREETYPE_CACHE_FT_GLYPH_CNT);
+    g_font_cn = lv_freetype_font_create(BOX86_FONT_CN_PATH,
+                                        LV_FREETYPE_FONT_RENDER_MODE_BITMAP,
+                                        BOX86_FONT_CN_SIZE,
+                                        LV_FREETYPE_FONT_STYLE_NORMAL);
+#elif LV_USE_TINY_TTF
+    g_font_cn = lv_tiny_ttf_create_file(BOX86_FONT_CN_PATH, BOX86_FONT_CN_SIZE);
+#endif
+    if (g_font_cn) {
+        /* 将中文字体应用到活动屏幕的根对象，所有子对象继承 */
+        static lv_style_t style_font;
+        lv_style_init(&style_font);
+        lv_style_set_text_font(&style_font, g_font_cn);
+        lv_obj_add_style(lv_screen_active(), &style_font, 0);
+        printf("[main] Chinese font loaded: %s size=%d\n",
+               BOX86_FONT_CN_PATH, BOX86_FONT_CN_SIZE);
+    } else {
+        printf("[main] WARNING: Failed to load Chinese font: %s\n", BOX86_FONT_CN_PATH);
+    }
 
     /* 3. 初始化 lvframe */
     page_manager_init();

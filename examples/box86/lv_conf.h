@@ -213,7 +213,24 @@
 #define LV_USE_MEM_MONITOR  0
 #define LV_USE_OBSERVER     1
 #define LV_USE_IMGFONT      0
-#define LV_USE_FREETYPE     0
+/* FreeType：用于 rk3506 等目标平台（需要系统预装 libfreetype） */
+#ifdef BOX86_USE_FREETYPE
+#  define LV_USE_FREETYPE   1
+#  if LV_USE_FREETYPE
+#    define LV_FREETYPE_USE_LVGL_PORT  0
+#    define LV_FREETYPE_CACHE_FT_GLYPH_CNT 256
+#  endif
+#  define LV_USE_TINY_TTF   0
+#else
+/* TinyTTF：内置纯 C 实现，用于 SDL 模拟器（无需系统 freetype 库） */
+#  define LV_USE_FREETYPE   0
+#  define LV_USE_TINY_TTF   1
+#  if LV_USE_TINY_TTF
+#    define LV_TINY_TTF_FILE_SUPPORT      1
+#    define LV_TINY_TTF_CACHE_GLYPH_CNT  256
+#    define LV_TINY_TTF_CACHE_KERNING_CNT 256
+#  endif
+#endif
 #define LV_USE_LODEPNG      0
 #define LV_USE_LIBPNG       0
 #define LV_USE_TJPGD        0
@@ -229,7 +246,7 @@
 #define LV_USE_LZ4_EXTERNAL 0
 #define LV_USE_VECTOR_GRAPHIC 0
 #define LV_USE_FFMPEG       0
-#define LV_USE_TINY_TTF     0
+/* LV_USE_TINY_TTF 已在上方 FreeType/TinyTTF 选择块中定义 */
 #define LV_USE_XML          0
 
 /* 不使用 demo */
