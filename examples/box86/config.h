@@ -17,8 +17,15 @@
 #define BOX86_ASSETS_PATH "./assets"
 #endif
 
-/* 字体文件路径 */
-#define BOX86_FONT_CN_PATH  BOX86_ASSETS_PATH "/font/SourceHanSerifCN-Regular.otf"
+/* 字体文件路径
+ * TinyTTF（SDL 模拟器）通过 LVGL 虚拟文件系统读取，需要 "A:" 驱动前缀
+ * FreeType（rk3506）直接用 fopen，使用原生绝对路径
+ */
+#ifdef BOX86_USE_FREETYPE
+#  define BOX86_FONT_CN_PATH  BOX86_ASSETS_PATH "/font/SourceHanSerifCN-Regular.otf"
+#else
+#  define BOX86_FONT_CN_PATH  "A:" BOX86_ASSETS_PATH "/font/SourceHanSerifCN-Regular.otf"
+#endif
 
 /* 中文字体默认大小 */
 #define BOX86_FONT_CN_SIZE  20

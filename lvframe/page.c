@@ -2,6 +2,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+static void (*s_root_created_cb)(lv_obj_t *root) = NULL;
+
+void page_set_root_created_cb(void (*cb)(lv_obj_t *root))
+{
+    s_root_created_cb = cb;
+}
+
 Page* page_create(PageLifecycle* lifecycle, void* params) {
     Page* page = (Page*)calloc(1, sizeof(Page));
     if (!page) return NULL;
@@ -13,6 +20,9 @@ Page* page_create(PageLifecycle* lifecycle, void* params) {
     lv_obj_set_style_pad_all(page->root, 0, LV_PART_MAIN);
     lv_obj_set_style_border_width(page->root, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(page->root, 0, LV_PART_MAIN);
+
+    /* 通知应用层：root 已创建（可用于设置全局字体等） */
+    if (s_root_created_cb) s_root_created_cb(page->root);
     
     if (lifecycle) {
         page->lifecycle = *lifecycle;

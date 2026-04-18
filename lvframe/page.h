@@ -63,4 +63,11 @@ void* page_get_user_data(Page* page);
 void  page_set_model_valid(Page* page, int valid);
 int   page_is_model_valid(Page* page);
 
+/**
+ * 注册 root 对象创建后的回调，可用于应用层设置全局字体等。
+ * 每次 page_create 创建 root 后都会调用此回调。
+ * @param cb  回调函数，参数为新创建的 root 对象；传 NULL 清除回调
+ */
+void page_set_root_created_cb(void (*cb)(lv_obj_t *root));
+
 #endif /* PAGE_H */

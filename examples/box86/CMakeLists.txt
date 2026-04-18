@@ -64,22 +64,43 @@ else()
     add_subdirectory(${APP_PLATFORM_DIR} ${CMAKE_BINARY_DIR}/platform_build)
 endif()
 
-# ── 字体引擎：sdl 用 tiny_ttf（内置），rk3506 用 freetype（系统库）──
+# ── 字体引擎：两个平台都用 FreeType（支持 CFF/OTF 格式） ──
+add_compile_definitions(BOX86_USE_FREETYPE)
 if(PLATFORM STREQUAL "rk3506")
-    # rk3506 目标机预装 freetype，走 LV_USE_FREETYPE 路径
-    add_compile_definitions(BOX86_USE_FREETYPE)
+    # rk3506 目标机预装 freetype，使用系统默认路径
     find_library(FREETYPE_LIB freetype HINTS /usr/lib /usr/local/lib)
     if(NOT FREETYPE_LIB)
         message(WARNING "freetype library not found; set FREETYPE_LIB manually for cross-compilation")
-        set(FREETYPE_LIB freetype)   # 交叉编译时 sysroot 内会有
+        set(FREETYPE_LIB freetype)
     endif()
-    set(FONT_ENGINE_LIBS ${FREETYPE_LIB})
     message(STATUS "Font engine: FreeType (${FREETYPE_LIB})")
 else()
-    # SDL 模拟器：使用 LVGL 内置 TinyTTF，无需额外系统库
-    set(FONT_ENGINE_LIBS "")
-    message(STATUS "Font engine: TinyTTF (built-in)")
+    # SDL 模拟器：使用从 deb 包提取的头文件 + 系统已有的 libfreetype.so
+    set(FT_INCLUDE_DIR "/tmp/ft_dev/usr/include/freetype2")
+    if(NOT EXISTS "${FT_INCLUDE_DIR}")
+        message(FATAL_ERROR
+            "FreeType headers not found at ${FT_INCLUDE_DIR}.\n"
+            "请执行：apt-get download libfreetype-dev && "
+            "dpkg-deb -x libfreetype-dev_*.deb /tmp/ft_dev")
+    endif()
+    include_directories(${FT_INCLUDE_DIR})
+    find_library(FREETYPE_LIB freetype
+        HINTS /usr/lib/x86_64-linux-gnu /usr/lib /usr/local/lib)
+    if(NOT FREETYPE_LIB)
+        set(FREETYPE_LIB /usr/lib/x86_64-linux-gnu/libfreetype.so.6)
+    endif()
+    message(STATUS "Font engine: FreeType (${FREETYPE_LIB}), headers: ${FT_INCLUDE_DIR}")
 endif()
+set(FONT_ENGINE_LIBS ${FREETYPE_LIB})
+
+# LVGL FreeType 集成源文件（LV_USE_FREETYPE=1 时需手动加入编译）
+set(LVGL_FREETYPE_SRCS
+    ${LVGL_DIR}/src/libs/freetype/lv_freetype.c
+    ${LVGL_DIR}/src/libs/freetype/lv_freetype_glyph.c
+    ${LVGL_DIR}/src/libs/freetype/lv_freetype_image.c
+    ${LVGL_DIR}/src/libs/freetype/lv_freetype_outline.c
+    ${LVGL_DIR}/src/libs/freetype/lv_ftsystem.c
+)
 
 # ── lvframe 库 ────────────────────────────────────────
 add_library(lvframe STATIC
@@ -110,7 +131,9 @@ list(FILTER APP_SOURCES EXCLUDE REGEX "/old/")
 # 排除旧的设备页组件实现
 list(REMOVE_ITEM APP_SOURCES "${CMAKE_SOURCE_DIR}/pages/device_page_component.c")
 
-add_executable(box86 ${APP_SOURCES})
+add_executable(box86 ${APP_SOURCES} ${LVGL_FREETYPE_SRCS}
+    ${CMAKE_SOURCE_DIR}/font.c
+)
 target_include_directories(box86 PRIVATE ${ROOT_DIR} ${CMAKE_SOURCE_DIR})
 target_link_libraries(box86 PRIVATE lvframe platform lvgl ${FONT_ENGINE_LIBS} m pthread)
 target_compile_options(box86 PRIVATE -Wall -Wno-unused-function)

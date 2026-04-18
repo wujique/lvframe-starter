@@ -30,7 +30,7 @@
 #define LV_DRAW_TRANSFORM_USE_MATRIX 0
 #define LV_DRAW_LAYER_SIMPLE_BUF_SIZE  (24 * 1024)
 #define LV_DRAW_LAYER_MAX_MEMORY 0
-#define LV_DRAW_THREAD_STACK_SIZE (8 * 1024)
+#define LV_DRAW_THREAD_STACK_SIZE (64 * 1024)
 #define LV_DRAW_THREAD_PRIO LV_THREAD_PRIO_HIGH
 #define LV_USE_DRAW_SW 1
 #if LV_USE_DRAW_SW
@@ -213,6 +213,14 @@
 #define LV_USE_MEM_MONITOR  0
 #define LV_USE_OBSERVER     1
 #define LV_USE_IMGFONT      0
+/* 文件系统：POSIX 驱动（用于 TinyTTF/FreeType 从文件加载字体） */
+#define LV_USE_FS_POSIX 1
+#if LV_USE_FS_POSIX
+    #define LV_FS_POSIX_LETTER 'A'  /**< 驱动字母，路径前缀：A:/abs/path */
+    #define LV_FS_POSIX_PATH   ""   /**< 空：使用绝对路径 */
+    #define LV_FS_POSIX_CACHE_SIZE 0
+#endif
+
 /* FreeType：用于 rk3506 等目标平台（需要系统预装 libfreetype） */
 #ifdef BOX86_USE_FREETYPE
 #  define LV_USE_FREETYPE   1
