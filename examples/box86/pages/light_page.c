@@ -22,6 +22,8 @@ static void on_toggle(lv_event_t* e)
 void light_page_build(lv_obj_t* root, DevicePageData* d)
 {
     lv_obj_set_size(root, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_bg_color(root, lv_color_hex(0xFFFDE7), LV_PART_MAIN); /* 暖黄 */
+    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, LV_PART_MAIN);
 
     d->lbl_name = lv_label_create(root);
     lv_label_set_text(d->lbl_name, "...");
