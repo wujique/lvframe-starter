@@ -341,7 +341,7 @@ box86 项目最终选用 FreeType。本章记录两者的详细评估，供后�
 | 字体 Hinting | 基础支持（autohint） | 完整支持（TrueType hinting + autohint） |
 | SVG/COLR 彩色字体 | ❌ | ✅（需开启对应模块） |
 
-**关键发现**：box86 使用的思源宋体（`SourceHanSerifCN-Regular.otf`）是 **CFF/OTF 格式**。stb_truetype 虽然有 CFF 解析代码，但光栅化路径对 CJK 汉字存在 `STBTT_assert(0)` 断言，实际测试中所有汉字均渲染为方块。
+**关键发现**：box86 原使用思源宋体 OTF 格式（`SourceHanSerifCN-Regular.otf`），属于 CFF/OTF 格式。stb_truetype 虽然有 CFF 解析代码，但光栅化路径对 CJK 汉字存在 `STBTT_assert(0)` 断言，实际测试中所有汉字均渲染为方块。现已更换为同款字体的 TTF 格式（`SourceHanSerifCN-Regular.ttf`），TinyTTF 理论上可以处理，但仍建议使用 FreeType 以规避 CJK cmap 兼容性风险。
 
 ---
 
@@ -359,7 +359,7 @@ TinyTTF 作为单头文件编译进应用，没有动态库开销；FreeType 作
 
 | | TinyTTF | FreeType |
 |--|---------|---------|
-| 字体加载（解析 OTF 头） | 字体文件全部载入内存，汉字 OTF 约 10–20 MB | 惰性加载，按需解析字形，常驻内存约 2–5 MB |
+| 字体加载（解析字体头） | 字体文件全部载入内存，汉字 TTF 约 10–20 MB | 惰性加载，按需解析字形，常驻内存约 2–5 MB |
 | 字形缓存 | 依赖 LVGL 的 glyph cache（LRU） | 内置缓存（Cache Manager），可精细配置 |
 | 每字形渲染临时内存 | 约 1–4 KB/字形 | 约 2–8 KB/字形（轮廓处理更复杂） |
 
@@ -420,13 +420,13 @@ TinyTTF 作为单头文件编译进应用，没有动态库开销；FreeType 作
 | 场景 | 推荐引擎 | 原因 |
 |------|---------|------|
 | 仅显示 ASCII / Latin 字符 | TinyTTF | 无需 CJK 支持，集成简单，资源占用小 |
-| 显示中文，字体为 TTF 格式 | TinyTTF（谨慎）或 FreeType | 需实测 cmap 格式是否兼容；建议直接用 FreeType 规避风险 |
+| 显示中文，字体为 TTF 格式 | TinyTTF（谨慎）或 FreeType | 需实测 cmap 格式是否兼容（CJK cmap format 2 有已知 @TODO）；建议直接用 FreeType 规避风险 |
 | 显示中文，字体为 OTF/CFF 格式 | **FreeType** | TinyTTF 存在已知光栅化缺陷，无法正确渲染 |
 | MCU（无 OS，RAM < 8 MB） | TinyTTF | FreeType 体积过大，移植复杂 |
 | 嵌入式 Linux（RAM ≥ 32 MB） | **FreeType** | 系统通常预装，共享库节省整体内存，质量更高 |
 | 对渲染质量要求高（UI 设计稿还原） | **FreeType** | hinting 支持，小字号清晰 |
 
 **box86 选型结论**：使用 FreeType，原因如下：
-1. 字体文件为 OTF/CFF 格式（思源宋体），TinyTTF 无法正确渲染
+1. 字体文件为 TTF 格式（思源宋体），TinyTTF 理论可用，但 stb_truetype 对 CJK cmap format 2 有已知 @TODO 缺陷，存在不兼容风险
 2. 目标平台 RK3506 运行 Linux，RAM 充足，系统可预装 libfreetype
 3. 中文界面对渲染质量有要求，FreeType 的 hinting 在小字号下效果更好

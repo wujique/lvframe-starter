@@ -40,7 +40,7 @@ box86/
 ├── models/                 # 数据模型定义
 ├── assets/                 # 资源文件
 │   └── font/               # 字体文件
-│       └── SourceHanSerifCN-Regular.otf
+│       └── SourceHanSerifCN-Regular.ttf
 ├── platform/               # 应用自有平台支持
 │   └── rk3506/             # RK3506 Linux 平台实现
 │       ├── platform_rk3506.c
