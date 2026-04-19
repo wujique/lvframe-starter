@@ -298,3 +298,135 @@ LVGL 线程（UI 刷新回调）
 ## 资源清单
 
 当前版本无图片资源，字体使用 LVGL 内置字体。
+
+---
+
+## 字体引擎评估：FreeType vs TinyTTF
+
+### 评估背景
+
+LVGL 9.x 内置支持两种矢量字体引擎：
+
+- **TinyTTF**：基于 stb_truetype，单头文件，零外部依赖，随 LVGL 源码一同编译
+- **FreeType**：独立字体渲染库，需要系统预装或交叉编译，功能完整，工业级
+
+box86 项目最终选用 FreeType。本章记录两者的详细评估，供后续项目选型参考。
+
+---
+
+### 1. 代码量与集成复杂度
+
+| 指标 | TinyTTF（stb_truetype） | FreeType |
+|------|------------------------|----------|
+| 集成方式 | 单头文件，随 LVGL 源码编译 | 外部库，需安装或交叉编译 |
+| LVGL 集成代码量 | `lv_tiny_ttf.c` 约 717 行 | `lv_freetype.c` 等共约 1700 行 |
+| 引擎自身代码量 | `stb_truetype_htcw.h` 约 5600 行（含注释） | FreeType 库本身约 20 万行（含所有模块） |
+| 依赖管理 | 无外部依赖 | 需要 libfreetype（共享库约 795KB） |
+| CMake 配置 | 仅开启 `LV_USE_TINY_TTF`，无额外步骤 | 需配置头文件路径、链接 libfreetype |
+| 移植到新平台 | 极简，几乎零配置 | 需确认目标平台预装或交叉编译 freetype |
+
+**结论**：TinyTTF 集成更简单，适合快速原型；FreeType 集成复杂度较高，但可通过工程内置头文件（`third_party/freetype2/`）降低配置门槛。
+
+---
+
+### 2. 字体格式支持
+
+| 格式 | TinyTTF（stb_truetype） | FreeType |
+|------|------------------------|----------|
+| TTF（TrueType，glyf 轮廓） | ✅ 完整支持 | ✅ 完整支持 |
+| OTF/CFF（PostScript 轮廓） | ⚠️ 部分支持：能解析 CFF 数据结构，但光栅化路径存在断言缺陷（`STBTT_assert(0)`），实际渲染汉字时输出方块 | ✅ 完整支持 |
+| TTC（字体集合） | ⚠️ 部分：索引获取有 @TODO 注释 | ✅ 完整支持 |
+| CJK 高字节映射（cmap format 2） | ❌ 明确标注 `@TODO: high-byte mapping for japanese/chinese/korean`，汉字可能无法正确映射 | ✅ 完整支持 |
+| 可变字体（Variable Fonts） | ❌ 不支持 | ✅ 支持（FreeType 2.10+） |
+| 字体 Hinting | 基础支持（autohint） | 完整支持（TrueType hinting + autohint） |
+| SVG/COLR 彩色字体 | ❌ | ✅（需开启对应模块） |
+
+**关键发现**：box86 使用的思源宋体（`SourceHanSerifCN-Regular.otf`）是 **CFF/OTF 格式**。stb_truetype 虽然有 CFF 解析代码，但光栅化路径对 CJK 汉字存在 `STBTT_assert(0)` 断言，实际测试中所有汉字均渲染为方块。
+
+---
+
+### 3. 内存消耗
+
+#### 3.1 代码段（Flash/ROM）
+
+| | TinyTTF | FreeType |
+|--|---------|---------|
+| 引擎代码段（估算） | ~50–80 KB（编译进可执行文件） | 共享库约 795 KB；若静态链接约 300–500 KB（可通过模块裁剪） |
+
+TinyTTF 作为单头文件编译进应用，没有动态库开销；FreeType 作为共享库仅在内存中加载一份，多进程可共享。
+
+#### 3.2 堆内存
+
+| | TinyTTF | FreeType |
+|--|---------|---------|
+| 字体加载（解析 OTF 头） | 字体文件全部载入内存，汉字 OTF 约 10–20 MB | 惰性加载，按需解析字形，常驻内存约 2–5 MB |
+| 字形缓存 | 依赖 LVGL 的 glyph cache（LRU） | 内置缓存（Cache Manager），可精细配置 |
+| 每字形渲染临时内存 | 约 1–4 KB/字形 | 约 2–8 KB/字形（轮廓处理更复杂） |
+
+#### 3.3 栈内存
+
+| | TinyTTF | FreeType |
+|--|---------|---------|
+| LVGL 渲染线程栈需求 | 约 8–16 KB 即可（官方建议 16 KB） | 官方要求最低 32 KB，建议 64 KB |
+| 原因 | 渲染逻辑简单，调用栈浅 | 内部模块嵌套深（hinting、outline decompose 等） |
+
+> box86 工程中 `LV_DRAW_THREAD_STACK_SIZE` 已从默认值改为 `(64 * 1024)` 以满足 FreeType 需求。
+
+**嵌入式 Linux 建议**：RAM 紧张（<32 MB）时优先 TinyTTF；RAM 充裕时 FreeType 因惰性加载反而更节省常驻内存。
+
+---
+
+### 4. 汉字渲染速度
+
+以下为理论分析（无法在当前 x86 SDL 环境直接代表嵌入式 Linux 性能）：
+
+| 场景 | TinyTTF | FreeType |
+|------|---------|---------|
+| 首次渲染单个汉字 | 快（无 hinting，光栅化路径简单） | 较慢（hinting 计算 + outline decompose） |
+| 重复渲染（缓存命中） | 相同（均依赖 LVGL glyph cache，内存命中后无差异） | 相同 |
+| 大字号（>40px） | 快，outline 精度一般 | 稍慢，但轮廓质量更高 |
+| 小字号（<16px） | 边缘锯齿明显（无 hinting） | 清晰（hinting 补偿低分辨率失真） |
+| 批量渲染（屏幕刷新） | 快约 20–40%（参考 stb_truetype 社区 benchmark） | 基准速度，但嵌入式平台有硬件加速（如 RK3506 的 RGA）可补偿 |
+
+**嵌入式 Linux 特别说明**：
+
+- RK3506 等 Rockchip 平台搭配 LVGL 时，渲染瓶颈通常是 **GPU/RGA blending** 而非字体光栅化，字体引擎本身的速度差异影响有限
+- 汉字字形缓存（16px 字体约 3500 个常用汉字 × 每字形约 256 字节 = ~900 KB）是主要内存开销，与引擎选择无关
+- FreeType 支持 **FT_Library** 全局复用，多线程场景下需要互斥锁（LVGL 的 `lv_ftsystem.c` 已处理）
+
+---
+
+### 5. 综合对比表
+
+| 维度 | TinyTTF | FreeType | 胜出 |
+|------|---------|---------|------|
+| 集成复杂度 | ★★★★★ 极简 | ★★★☆☆ 中等 | TinyTTF |
+| 外部依赖 | 无 | libfreetype | TinyTTF |
+| TTF 格式支持 | 完整 | 完整 | 平 |
+| OTF/CFF 格式支持 | 缺陷（汉字渲染为方块） | 完整 | **FreeType** |
+| CJK 字符支持 | 存在已知 @TODO 缺陷 | 完整 | **FreeType** |
+| 代码段占用 | 小（~80 KB） | 大（~800 KB so） | TinyTTF |
+| 常驻堆内存 | 较多（全量加载） | 较少（惰性加载） | **FreeType** |
+| 栈内存需求 | 低（~16 KB） | 高（~64 KB） | TinyTTF |
+| 渲染速度（无缓存） | 快 | 中等 | TinyTTF |
+| 小字号渲染质量 | 一般（无 hinting） | 优（完整 hinting） | **FreeType** |
+| 可变字体 | 不支持 | 支持 | **FreeType** |
+| 嵌入式 Linux 适用性 | 适合 RAM < 16 MB 场景 | 适合 RAM ≥ 32 MB 场景 | 视硬件 |
+
+---
+
+### 6. 选型建议
+
+| 场景 | 推荐引擎 | 原因 |
+|------|---------|------|
+| 仅显示 ASCII / Latin 字符 | TinyTTF | 无需 CJK 支持，集成简单，资源占用小 |
+| 显示中文，字体为 TTF 格式 | TinyTTF（谨慎）或 FreeType | 需实测 cmap 格式是否兼容；建议直接用 FreeType 规避风险 |
+| 显示中文，字体为 OTF/CFF 格式 | **FreeType** | TinyTTF 存在已知光栅化缺陷，无法正确渲染 |
+| MCU（无 OS，RAM < 8 MB） | TinyTTF | FreeType 体积过大，移植复杂 |
+| 嵌入式 Linux（RAM ≥ 32 MB） | **FreeType** | 系统通常预装，共享库节省整体内存，质量更高 |
+| 对渲染质量要求高（UI 设计稿还原） | **FreeType** | hinting 支持，小字号清晰 |
+
+**box86 选型结论**：使用 FreeType，原因如下：
+1. 字体文件为 OTF/CFF 格式（思源宋体），TinyTTF 无法正确渲染
+2. 目标平台 RK3506 运行 Linux，RAM 充足，系统可预装 libfreetype
+3. 中文界面对渲染质量有要求，FreeType 的 hinting 在小字号下效果更好

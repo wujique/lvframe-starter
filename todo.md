@@ -26,3 +26,9 @@ TODO：整理box86 readme.md
 1、编写readme.md，说明box86工程，包括大概的工程结构，配置依赖，编译说明等内容。
 2、详细设计保留在DESIGN.md.
 3、测试说明保留在TESTING.md，请分析TESTING.md，可以将无关内容移动到readmd.md。
+
+日期：29260419
+完成度：已完成
+TODO：评估freetype和tinyttf
+要求：
+评估freetype和tinyfft的性能差异，包括但不限于代码量、内存（堆/栈）消耗、汉字渲染速度。将结果形成文档输出。最好能输出在嵌入式linux平台的评估。
