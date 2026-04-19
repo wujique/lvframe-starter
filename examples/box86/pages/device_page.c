@@ -38,10 +38,10 @@ static void on_create(Page* page, void* params)
     lv_obj_t* root = page_get_root(page);
 
     switch (d->type) {
-    case LV_DEVICE_TYPE_CCT:
+    case BOX86_DEVICE_TYPE_CCT:
         cct_light_page_build(root, d);
         break;
-    case LV_DEVICE_TYPE_CURTAIN:
+    case BOX86_DEVICE_TYPE_CURTAIN:
         curtain_page_build(root, d);
         break;
     default:
@@ -50,10 +50,10 @@ static void on_create(Page* page, void* params)
     }
 
     switch (d->type) {
-    case LV_DEVICE_TYPE_CCT:
+    case BOX86_DEVICE_TYPE_CCT:
         cct_light_page_refresh(d);
         break;
-    case LV_DEVICE_TYPE_CURTAIN:
+    case BOX86_DEVICE_TYPE_CURTAIN:
         curtain_page_refresh(d);
         break;
     default:
@@ -77,10 +77,10 @@ static void on_event(Page* page, Event* event)
     switch (event->data.user.msg_type) {
     case MSG_BIZ_REFRESH:
         switch (d->type) {
-        case LV_DEVICE_TYPE_CCT:
+        case BOX86_DEVICE_TYPE_CCT:
             cct_light_page_refresh(d);
             break;
-        case LV_DEVICE_TYPE_CURTAIN:
+        case BOX86_DEVICE_TYPE_CURTAIN:
             curtain_page_refresh(d);
             break;
         default:

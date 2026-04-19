@@ -1,23 +1,23 @@
 #include "settings_page.h"
 #include "more_settings_page.h"
-#include "lvframe/device/lv_device_model.h"
+#include "models/device_store.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include "lvframe/page_manager.h"
 
 typedef struct {
-    AppBus*      bus;
+    AppBus*            bus;
     lv_device_store_t* store;
-    lv_obj_t*    btn_network;
-    lv_obj_t*    lbl_network;
+    lv_obj_t*          btn_network;
+    lv_obj_t*          lbl_network;
 } SettingsPageData;
 
 static void on_network_toggle(lv_event_t* e)
 {
     SettingsPageData* d = lv_event_get_user_data(e);
-    lv_system_model_t sys;
-    lv_device_store_snapshot_system(d->store, &sys);
+    box86_system_model_t sys;
+    box86_store_snapshot_system(d->store, &sys);
 
     AppMsg msg = {
         .type      = MSG_UI_SET_SYSTEM,
@@ -86,8 +86,8 @@ void settings_page_refresh(lv_obj_t* page)
 {
     SettingsPageData* d = lv_obj_get_user_data(page);
     if (!d) return;
-    lv_system_model_t sys;
-    lv_device_store_snapshot_system(d->store, &sys);
+    box86_system_model_t sys;
+    box86_store_snapshot_system(d->store, &sys);
     if (sys.network_enabled) {
         lv_obj_set_style_bg_color(d->btn_network, lv_color_hex(0xFFB300), 0);
         lv_label_set_text(d->lbl_network, "Network: ON");

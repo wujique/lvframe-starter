@@ -9,11 +9,11 @@ static void on_curtain_btn(lv_event_t* e)
     lv_obj_t* btn = lv_event_get_target(e);
     if (!d) return;
 
-    lv_curtain_cmd_t cmd = LV_CURTAIN_CMD_NONE;
-    if      (btn == d->btn_open)  cmd = LV_CURTAIN_CMD_OPEN;
-    else if (btn == d->btn_close) cmd = LV_CURTAIN_CMD_CLOSE;
-    else if (btn == d->btn_stop)  cmd = LV_CURTAIN_CMD_STOP;
-    if (cmd == LV_CURTAIN_CMD_NONE) return;
+    box86_curtain_cmd_t cmd = BOX86_CURTAIN_CMD_NONE;
+    if      (btn == d->btn_open)  cmd = BOX86_CURTAIN_CMD_OPEN;
+    else if (btn == d->btn_close) cmd = BOX86_CURTAIN_CMD_CLOSE;
+    else if (btn == d->btn_stop)  cmd = BOX86_CURTAIN_CMD_STOP;
+    if (cmd == BOX86_CURTAIN_CMD_NONE) return;
 
     AppMsg msg;
     memset(&msg, 0, sizeof(msg));
@@ -53,8 +53,8 @@ void curtain_page_build(lv_obj_t* root, DevicePageData* d)
 
 void curtain_page_refresh(DevicePageData* d)
 {
-    lv_curtain_model_t snap;
-    if (lv_device_store_snapshot_curtain(d->store, d->device_id, &snap) < 0) return;
+    box86_curtain_model_t snap;
+    if (box86_store_snapshot_curtain(d->store, d->device_id, &snap) < 0) return;
     lv_label_set_text(d->lbl_name, snap.base.name);
     char buf[32];
     snprintf(buf, sizeof(buf), "Position: %d%%", snap.position);

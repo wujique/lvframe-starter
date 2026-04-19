@@ -2,7 +2,7 @@
 #define BUSINESS_H
 
 #include "app_bus.h"
-#include "lvframe/device/lv_device_store.h"
+#include "models/device_store.h"
 
 typedef struct {
     AppBus*      bus;

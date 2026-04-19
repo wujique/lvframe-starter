@@ -7,8 +7,8 @@ static void on_toggle(lv_event_t* e)
     DevicePageData* d = lv_event_get_user_data(e);
     if (!d) return;
 
-    lv_light_model_t snap;
-    if (lv_device_store_snapshot_light(d->store, d->device_id, &snap) < 0) return;
+    box86_light_model_t snap;
+    if (box86_store_snapshot_light(d->store, d->device_id, &snap) < 0) return;
 
     AppMsg msg;
     memset(&msg, 0, sizeof(msg));
@@ -51,8 +51,8 @@ void light_page_build(lv_obj_t* root, DevicePageData* d)
 
 void light_page_refresh(DevicePageData* d)
 {
-    lv_light_model_t snap;
-    if (lv_device_store_snapshot_light(d->store, d->device_id, &snap) < 0) return;
+    box86_light_model_t snap;
+    if (box86_store_snapshot_light(d->store, d->device_id, &snap) < 0) return;
     lv_label_set_text(d->lbl_name, snap.base.name);
     lv_label_set_text(d->lbl_status, snap.onoffsta ? "已开启" : "已关闭");
 }

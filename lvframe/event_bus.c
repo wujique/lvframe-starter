@@ -97,28 +97,7 @@ void event_bus_unsubscribe_all(Page* page) {
 void event_bus_trigger(Event* event) {
     if (!event) return;
     
-    printf("EventBus: trigger event type=%d", event->type);
-    switch (event->type) {
-        case EVENT_LIGHT_STATE_CHANGED:
-            printf(" (LIGHT_STATE_CHANGED) device_id=%d is_on=%d brightness=%d",
-                   event->data.light.device_id, event->data.light.is_on, event->data.light.brightness);
-            break;
-        case EVENT_DEVICE_ADDED:
-            printf(" (DEVICE_ADDED) device_id=%d", event->data.device.device_id);
-            break;
-        case EVENT_DEVICE_REMOVED:
-            printf(" (DEVICE_REMOVED) device_id=%d", event->data.device.device_id);
-            break;
-        case EVENT_NETWORK_DISCONNECTED:
-            printf(" (NETWORK_DISCONNECTED)");
-            break;
-        case EVENT_BATTERY_LOW:
-            printf(" (BATTERY_LOW) level=%d", event->data.battery.level);
-            break;
-        default:
-            printf(" (unknown)");
-    }
-    printf("\n");
+    printf("EventBus: trigger event type=%d\n", event->type);
     
     lv_mutex_lock(&g_bus.mutex);
     

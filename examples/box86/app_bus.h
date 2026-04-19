@@ -11,7 +11,7 @@
  * 所有接口线程安全。
  */
 
-#include "lvframe/device/lv_device_model.h"
+#include "models/device_model.h"
 #include "lvgl/lvgl.h"
 #include "lvgl/src/osal/lv_os_private.h"
 

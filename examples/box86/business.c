@@ -1,6 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "business.h"
-#include "lvframe/device/lv_device_model.h"
+#include "models/device_model.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -28,12 +28,12 @@ static void handle_ui_msg(Business* biz, const AppMsg* msg)
         lv_device_base_t bases[LV_MAX_DEVICES];
         int order[LV_MAX_DEVICES], count = 0;
         lv_device_store_snapshot_base(biz->store, bases, order, &count);
-        lv_device_type_t dtype = LV_DEVICE_TYPE_LIGHT;
+        int dtype = BOX86_DEVICE_TYPE_LIGHT;
         for (int i = 0; i < count; i++) if (bases[i].id == msg->device_id) { dtype = bases[i].type; break; }
 
-        if      (dtype == LV_DEVICE_TYPE_LIGHT)   lv_device_store_set_light_prop(biz->store, msg->device_id, msg->field, msg->value);
-        else if (dtype == LV_DEVICE_TYPE_CCT)     lv_device_store_set_cct_prop(biz->store, msg->device_id, msg->field, msg->value);
-        else if (dtype == LV_DEVICE_TYPE_CURTAIN) lv_device_store_set_curtain_prop(biz->store, msg->device_id, msg->field, msg->value);
+        if      (dtype == BOX86_DEVICE_TYPE_LIGHT)   box86_store_set_light_prop(biz->store, msg->device_id, msg->field, msg->value);
+        else if (dtype == BOX86_DEVICE_TYPE_CCT)     box86_store_set_cct_prop(biz->store, msg->device_id, msg->field, msg->value);
+        else if (dtype == BOX86_DEVICE_TYPE_CURTAIN) box86_store_set_curtain_prop(biz->store, msg->device_id, msg->field, msg->value);
 
         shell_log("[UI] set %d %s %d\n", msg->device_id, msg->field, msg->value);
 
@@ -45,7 +45,7 @@ static void handle_ui_msg(Business* biz, const AppMsg* msg)
         break;
     }
     case MSG_UI_SET_SYSTEM:
-        lv_device_store_set_system(biz->store, msg->field, msg->value);
+        box86_store_set_system(biz->store, msg->field, msg->value);
         shell_log("[UI] set system %s %d\n", msg->field, msg->value);
 
         /* 通知 UI 刷新系统设置页面 */
@@ -87,20 +87,20 @@ static void handle_shell_cmd(Business* biz, char* line)
         for (int i = 0; i < count; i++) {
             lv_device_base_t* b = &bases[order[i]];
             const char* type_str =
-                b->type == LV_DEVICE_TYPE_LIGHT   ? "light" :
-                b->type == LV_DEVICE_TYPE_CCT     ? "cct_light" : "curtain";
-            if (b->type == LV_DEVICE_TYPE_CURTAIN) {
-                lv_curtain_model_t snap;
-                lv_device_store_snapshot_curtain(biz->store, b->id, &snap);
+                b->type == BOX86_DEVICE_TYPE_LIGHT   ? "light" :
+                b->type == BOX86_DEVICE_TYPE_CCT     ? "cct_light" : "curtain";
+            if (b->type == BOX86_DEVICE_TYPE_CURTAIN) {
+                box86_curtain_model_t snap;
+                box86_store_snapshot_curtain(biz->store, b->id, &snap);
                 shell_log("%-4d %-12s %-10s pos=%d\n", b->id, type_str, b->name, snap.position);
-            } else if (b->type == LV_DEVICE_TYPE_CCT) {
-                lv_cct_light_model_t snap;
-                lv_device_store_snapshot_cct(biz->store, b->id, &snap);
+            } else if (b->type == BOX86_DEVICE_TYPE_CCT) {
+                box86_cct_light_model_t snap;
+                box86_store_snapshot_cct(biz->store, b->id, &snap);
                 shell_log("%-4d %-12s %-10s %s cct=%d\n", b->id, type_str, b->name,
                           snap.onoffsta ? "on" : "off", snap.color_temp);
             } else {
-                lv_light_model_t snap;
-                lv_device_store_snapshot_light(biz->store, b->id, &snap);
+                box86_light_model_t snap;
+                box86_store_snapshot_light(biz->store, b->id, &snap);
                 shell_log("%-4d %-12s %-10s %s\n", b->id, type_str, b->name,
                           snap.onoffsta ? "on" : "off");
             }
@@ -113,8 +113,8 @@ static void handle_shell_cmd(Business* biz, char* line)
         char target[16] = {0};
         sscanf(line, "%*s %15s", target);
         if (strcmp(target, "system") == 0) {
-            lv_system_model_t sys;
-            lv_device_store_snapshot_system(biz->store, &sys);
+            box86_system_model_t sys;
+            box86_store_snapshot_system(biz->store, &sys);
             shell_log("brightness=%d volume=%d network=%d\n",
                       sys.brightness, sys.volume, sys.network_enabled);
         } else {
@@ -125,14 +125,14 @@ static void handle_shell_cmd(Business* biz, char* line)
             lv_device_base_t* b = NULL;
             for (int i = 0; i < count; i++) if (bases[i].id == id) { b = &bases[i]; break; }
             if (!b) { shell_log("error: device %d not found\n", id); return; }
-            if (b->type == LV_DEVICE_TYPE_CURTAIN) {
-                lv_curtain_model_t snap; lv_device_store_snapshot_curtain(biz->store, id, &snap);
+            if (b->type == BOX86_DEVICE_TYPE_CURTAIN) {
+                box86_curtain_model_t snap; box86_store_snapshot_curtain(biz->store, id, &snap);
                 shell_log("id=%d name=%s pos=%d\n", id, b->name, snap.position);
-            } else if (b->type == LV_DEVICE_TYPE_CCT) {
-                lv_cct_light_model_t snap; lv_device_store_snapshot_cct(biz->store, id, &snap);
+            } else if (b->type == BOX86_DEVICE_TYPE_CCT) {
+                box86_cct_light_model_t snap; box86_store_snapshot_cct(biz->store, id, &snap);
                 shell_log("id=%d name=%s onoff=%d cct=%d\n", id, b->name, snap.onoffsta, snap.color_temp);
             } else {
-                lv_light_model_t snap; lv_device_store_snapshot_light(biz->store, id, &snap);
+                box86_light_model_t snap; box86_store_snapshot_light(biz->store, id, &snap);
                 shell_log("id=%d name=%s onoff=%d\n", id, b->name, snap.onoffsta);
             }
         }
@@ -144,9 +144,9 @@ static void handle_shell_cmd(Business* biz, char* line)
         char type_str[16] = {0}, name[LV_DEVICE_NAME_MAX] = {0};
         sscanf(line, "%*s %15s %31[^\n]", type_str, name);
         int new_id = -1;
-        if      (strcmp(type_str, "light")     == 0) new_id = lv_device_store_add_light(biz->store, name);
-        else if (strcmp(type_str, "cct_light") == 0) new_id = lv_device_store_add_cct(biz->store, name);
-        else if (strcmp(type_str, "curtain")   == 0) new_id = lv_device_store_add_curtain(biz->store, name);
+        if      (strcmp(type_str, "light")     == 0) new_id = box86_store_add_light(biz->store, name);
+        else if (strcmp(type_str, "cct_light") == 0) new_id = box86_store_add_cct(biz->store, name);
+        else if (strcmp(type_str, "curtain")   == 0) new_id = box86_store_add_curtain(biz->store, name);
         else { shell_log("error: unknown type '%s'\n", type_str); return; }
 
         if (new_id < 0) { shell_log("error: max devices reached\n"); return; }
@@ -190,7 +190,7 @@ static void handle_shell_cmd(Business* biz, char* line)
 
         if (strcmp(target, "system") == 0) {
             int value = atoi(val_str);
-            lv_device_store_set_system(biz->store, field, value);
+            box86_store_set_system(biz->store, field, value);
             shell_log("system %s=%d\n", field, value);
             msg.type = MSG_BIZ_REFRESH_SYS;
             app_bus_send_biz(biz->bus, &msg);
@@ -199,9 +199,9 @@ static void handle_shell_cmd(Business* biz, char* line)
             int value = 0;
             /* command 字段特殊处理 */
             if (strcmp(field, "command") == 0) {
-                if      (strcmp(val_str, "OPEN")  == 0) value = LV_CURTAIN_CMD_OPEN;
-                else if (strcmp(val_str, "CLOSE") == 0) value = LV_CURTAIN_CMD_CLOSE;
-                else if (strcmp(val_str, "STOP")  == 0) value = LV_CURTAIN_CMD_STOP;
+                if      (strcmp(val_str, "OPEN")  == 0) value = BOX86_CURTAIN_CMD_OPEN;
+                else if (strcmp(val_str, "CLOSE") == 0) value = BOX86_CURTAIN_CMD_CLOSE;
+                else if (strcmp(val_str, "STOP")  == 0) value = BOX86_CURTAIN_CMD_STOP;
             } else {
                 value = atoi(val_str);
             }
@@ -209,13 +209,13 @@ static void handle_shell_cmd(Business* biz, char* line)
             lv_device_base_t bases[LV_MAX_DEVICES];
             int order2[LV_MAX_DEVICES], count2 = 0;
             lv_device_store_snapshot_base(biz->store, bases, order2, &count2);
-        lv_device_type_t dtype = LV_DEVICE_TYPE_LIGHT;
+            int dtype = BOX86_DEVICE_TYPE_LIGHT;
             for (int i = 0; i < count2; i++) if (bases[i].id == id) { dtype = bases[i].type; break; }
 
             int ret = -1;
-            if      (dtype == LV_DEVICE_TYPE_LIGHT)   ret = lv_device_store_set_light_prop(biz->store, id, field, value);
-            else if (dtype == LV_DEVICE_TYPE_CCT)     ret = lv_device_store_set_cct_prop(biz->store, id, field, value);
-            else if (dtype == LV_DEVICE_TYPE_CURTAIN) ret = lv_device_store_set_curtain_prop(biz->store, id, field, value);
+            if      (dtype == BOX86_DEVICE_TYPE_LIGHT)   ret = box86_store_set_light_prop(biz->store, id, field, value);
+            else if (dtype == BOX86_DEVICE_TYPE_CCT)     ret = box86_store_set_cct_prop(biz->store, id, field, value);
+            else if (dtype == BOX86_DEVICE_TYPE_CURTAIN) ret = box86_store_set_curtain_prop(biz->store, id, field, value);
 
             if (ret < 0) { shell_log("error: invalid field or device\n"); return; }
             shell_log("device %d %s=%d\n", id, field, value);
@@ -225,8 +225,6 @@ static void handle_shell_cmd(Business* biz, char* line)
         }
         return;
     }
-
-
 
     shell_log("unknown command: %s\n", cmd);
     shell_log("commands: list | get <id|system> | add <type> <name> | del <id> | move <id> <pos> | set <id|system> <field> <value>\n");

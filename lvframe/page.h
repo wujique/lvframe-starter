@@ -17,23 +17,29 @@ typedef enum {
 typedef struct Page Page;
 
 /* ── 事件系统 ── */
+
+/**
+ * EventType — 框架预留事件类型
+ *
+ * 框架本身不定义任何业务事件。应用层从 EVENT_USER_START 开始定义自己的事件类型。
+ * 例如：
+ *   typedef enum {
+ *       MY_EVENT_FOO = EVENT_USER_START,
+ *       MY_EVENT_BAR,
+ *   } MyEventType;
+ */
 typedef enum {
-    EVENT_LIGHT_STATE_CHANGED,
-    EVENT_DEVICE_ADDED,
-    EVENT_DEVICE_REMOVED,
-    EVENT_NETWORK_DISCONNECTED,
-    EVENT_BATTERY_LOW,
-    EVENT_COUNT,
-    EVENT_USER_START = 100     /* 应用层自定义事件从此开始 */
+    EVENT_USER_START = 0   /* 应用层自定义事件从此开始 */
 } EventType;
 
 typedef struct {
-    EventType type;
+    int type;    /* 实际为 EventType 或应用层扩展值 */
     union {
-        struct { int device_id; int is_on; int brightness; } light;
-        struct { int device_id; } device;
-        struct { int level; } battery;
+        /* 通用用户数据载体，应用层可自由定义语义 */
         struct { int msg_type; int device_id; char field[32]; int value; int new_pos; } user;
+        /* 预留扩展槽，避免应用层直接操作原始字节 */
+        int  i[8];
+        void* p[4];
     } data;
 } Event;
 

@@ -8,8 +8,8 @@ static void on_toggle(lv_event_t* e)
     DevicePageData* d = lv_event_get_user_data(e);
     if (!d) return;
 
-    lv_cct_light_model_t snap;
-    if (lv_device_store_snapshot_cct(d->store, d->device_id, &snap) < 0) return;
+    box86_cct_light_model_t snap;
+    if (box86_store_snapshot_cct(d->store, d->device_id, &snap) < 0) return;
 
     AppMsg msg;
     memset(&msg, 0, sizeof(msg));
@@ -76,8 +76,8 @@ void cct_light_page_build(lv_obj_t* root, DevicePageData* d)
 
 void cct_light_page_refresh(DevicePageData* d)
 {
-    lv_cct_light_model_t snap;
-    if (lv_device_store_snapshot_cct(d->store, d->device_id, &snap) < 0) return;
+    box86_cct_light_model_t snap;
+    if (box86_store_snapshot_cct(d->store, d->device_id, &snap) < 0) return;
     lv_label_set_text(d->lbl_name, snap.base.name);
     lv_label_set_text(d->lbl_status, snap.onoffsta ? "ON" : "OFF");
     lv_slider_set_value(d->slider_cct, snap.color_temp, LV_ANIM_OFF);

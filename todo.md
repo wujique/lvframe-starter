@@ -32,3 +32,9 @@ TODO：整理box86 readme.md
 TODO：评估freetype和tinyttf
 要求：
 评估freetype和tinyfft的性能差异，包括但不限于代码量、内存（堆/栈）消耗、汉字渲染速度。将结果形成文档输出。最好能输出在嵌入式linux平台的评估。
+
+日期：29260419
+完成度：未完成
+TODO：梳理lvframe和box86 边界
+问题： 设备模型，是不同的ui应用定义。lvframe应该只提供数据模型的管理，而不是直接定义设备数据模型。
+要求：优化frame设计，设备模型定义放到ui应用，例如boxui。frame只提供管理这些数据模型的功能。

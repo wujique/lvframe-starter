@@ -7,6 +7,7 @@
 #include "app_bus.h"
 #include "lvframe/device/lv_device_store.h"
 #include "business.h"
+#include "models/device_store.h"
 #include "pages/home_page.h"
 #include "pages/more_settings_page.h"
 #include "config.h"
@@ -46,8 +47,8 @@ int main(void)
     lv_device_store_init(&g_store);
 
     /* 5. 创建默认设备：一个普通灯 */
-    lv_device_store_add_light(&g_store, "Living Room Light");
-    lv_device_store_add_light(&g_store, "bath Room Light");
+    box86_store_add_light(&g_store, "Living Room Light");
+    box86_store_add_light(&g_store, "bath Room Light");
     /* 6. 启动业务逻辑线程 */
     business_init(&g_biz, &g_bus, &g_store);
     business_start(&g_biz);

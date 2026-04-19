@@ -118,8 +118,6 @@ file(GLOB_RECURSE APP_SOURCES
     ${CMAKE_SOURCE_DIR}/models/*.c
 )
 
-# 排除旧的 device_store.c，已迁移到 lvframe/device/
-list(REMOVE_ITEM APP_SOURCES "${CMAKE_SOURCE_DIR}/models/device_store.c")
 # 排除 old 目录下的所有源文件
 list(FILTER APP_SOURCES EXCLUDE REGEX "/old/")
 # 排除旧的设备页组件实现

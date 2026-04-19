@@ -6,13 +6,13 @@
  */
 
 #include "device_page.h"
-#include "lvframe/device/lv_device_model.h"
+#include "models/device_store.h"
 
 typedef struct {
     AppBus*      bus;
     lv_device_store_t* store;
     int          device_id;
-    lv_device_type_t   type;
+    int                type;
 
     lv_obj_t*    lbl_name;
     lv_obj_t*    lbl_status;
