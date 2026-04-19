@@ -21,10 +21,13 @@
  * TinyTTF（SDL 模拟器）通过 LVGL 虚拟文件系统读取，需要 "A:" 驱动前缀
  * FreeType（rk3506）直接用 fopen，使用原生绝对路径
  */
+
+#define FONT_NAME "/font/SourceHanSerifCN-Regular.ttf"
+//#define FONT_NAME  "/font/SourceHanSerifCN-Regular.otf"
 #ifdef BOX86_USE_FREETYPE
-#  define BOX86_FONT_CN_PATH  BOX86_ASSETS_PATH "/font/SourceHanSerifCN-Regular.otf"
+#  define BOX86_FONT_CN_PATH  BOX86_ASSETS_PATH FONT_NAME
 #else
-#  define BOX86_FONT_CN_PATH  "A:" BOX86_ASSETS_PATH "/font/SourceHanSerifCN-Regular.otf"
+#  define BOX86_FONT_CN_PATH  "A:" BOX86_ASSETS_PATH FONT_NAME
 #endif
 
 /* 中文字体默认大小 */

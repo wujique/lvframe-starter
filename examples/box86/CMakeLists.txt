@@ -75,14 +75,8 @@ if(PLATFORM STREQUAL "rk3506")
     endif()
     message(STATUS "Font engine: FreeType (${FREETYPE_LIB})")
 else()
-    # SDL 模拟器：使用从 deb 包提取的头文件 + 系统已有的 libfreetype.so
-    set(FT_INCLUDE_DIR "/tmp/ft_dev/usr/include/freetype2")
-    if(NOT EXISTS "${FT_INCLUDE_DIR}")
-        message(FATAL_ERROR
-            "FreeType headers not found at ${FT_INCLUDE_DIR}.\n"
-            "请执行：apt-get download libfreetype-dev && "
-            "dpkg-deb -x libfreetype-dev_*.deb /tmp/ft_dev")
-    endif()
+    # SDL 模拟器：使用工程内置的 FreeType 头文件 + 系统已有的 libfreetype.so
+    set(FT_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/third_party/freetype2")
     include_directories(${FT_INCLUDE_DIR})
     find_library(FREETYPE_LIB freetype
         HINTS /usr/lib/x86_64-linux-gnu /usr/lib /usr/local/lib)

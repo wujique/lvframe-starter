@@ -18,3 +18,11 @@ TODO：box86支持中文显示。
 请修改代码和cmake文件（可以新增config.h文件），让box86支持显示中文。
 并且，编译sdl模拟器和rk3506平台都能显示。适量字库使用freetype引擎。
 另外，在编译rk3506平台时，请将lvgl编译成库，引用路径为/usr/lib/.
+
+日期：29260419
+完成度：已完成
+TODO：整理box86 readme.md
+要求：
+1、编写readme.md，说明box86工程，包括大概的工程结构，配置依赖，编译说明等内容。
+2、详细设计保留在DESIGN.md.
+3、测试说明保留在TESTING.md，请分析TESTING.md，可以将无关内容移动到readmd.md。
