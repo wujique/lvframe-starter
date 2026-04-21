@@ -101,6 +101,9 @@ static void on_destroy(Page* page)
     DevicePageData* d = page_get_user_data(page);
     if (d) {
         event_bus_unsubscribe(page, EVENT_APP_MESSAGE);
+        if (d->type == BOX86_DEVICE_TYPE_LIGHT) {
+            light_page_destroy(d);
+        }
         free(d);
     }
 }

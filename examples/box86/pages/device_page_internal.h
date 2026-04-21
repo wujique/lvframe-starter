@@ -28,11 +28,19 @@ typedef struct {
     lv_obj_t*    btn_open;
     lv_obj_t*    btn_close;
     lv_obj_t*    btn_stop;
+
+    /* 普通灯专用：彩虹边框 */
+    lv_obj_t*       border_canvas;   /* 覆盖整个页面的透明 canvas，只画四边 */
+    lv_draw_buf_t*  border_buf;      /* canvas 的像素缓冲 */
+    lv_timer_t*     border_timer;    /* 流水灯动画定时器 */
+    int             border_hue_off;  /* 当前色相偏移 (0~359) */
+    int             border_anim_ticks; /* 剩余动画帧数，0=静止 */
 } DevicePageData;
 
 /* 各设备页构建/刷新函数声明 */
 void light_page_build(lv_obj_t* root, DevicePageData* d);
 void light_page_refresh(DevicePageData* d);
+void light_page_destroy(DevicePageData* d);
 
 void cct_light_page_build(lv_obj_t* root, DevicePageData* d);
 void cct_light_page_refresh(DevicePageData* d);
