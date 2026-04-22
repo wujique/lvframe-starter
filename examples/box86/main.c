@@ -48,7 +48,8 @@ int main(void)
 
     /* 5. 创建默认设备：一个普通灯 */
     box86_store_add_light(&g_store, "Living Room Light");
-    box86_store_add_light(&g_store, "bath Room Light");
+    box86_store_add_cct(&g_store, "Bedroom CCT Light");
+    box86_store_add_curtain(&g_store, "Living Room Curtain");
     /* 6. 启动业务逻辑线程 */
     business_init(&g_biz, &g_bus, &g_store);
     business_start(&g_biz);
