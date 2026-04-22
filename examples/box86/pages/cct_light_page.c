@@ -14,10 +14,10 @@
 
 /* ── 边框参数 ── */
 #define CCT_BORDER_W      20          /* 色带宽度（像素） */
-#define CCT_ANIM_TOTAL_MS 800         /* 亮区绕行一圈时长（毫秒） */
+#define CCT_ANIM_TOTAL_MS 2000        /* 亮区绕行一圈时长（毫秒） */
 #define CCT_ANIM_TICK_MS  16          /* 定时器间隔（毫秒） */
 #define CCT_ANIM_TICKS    (CCT_ANIM_TOTAL_MS / CCT_ANIM_TICK_MS)
-#define CCT_SPOT_WIDTH    80          /* 亮区光斑宽度（周长像素） */
+#define CCT_SPOT_WIDTH    200         /* 亮区光斑宽度（周长像素） */
 
 /* ── 工具：按周长位置计算色相（0~359） ── */
 static int cct_hue_at(int pos, int perimeter)
@@ -26,11 +26,12 @@ static int cct_hue_at(int pos, int perimeter)
     return ((h % 360) + 360) % 360;
 }
 
-/* ── 工具：高斯形亮区强度（0~255），dist 为到光斑中心的距离，sigma = CCT_SPOT_WIDTH/3 ── */
+/* ── 工具：高斯形亮区强度（0~255），dist 为到光斑中心的距离
+ * sigma = CCT_SPOT_WIDTH/2.5，使光斑中间饱满、两端平滑渐暗 ── */
 static int spot_intensity(int dist)
 {
     if (dist < 0) dist = -dist;
-    float sigma = CCT_SPOT_WIDTH / 3.0f;
+    float sigma = CCT_SPOT_WIDTH / 2.5f;
     float v = expf(-(float)(dist * dist) / (2.0f * sigma * sigma));
     int iv = (int)(v * 255.0f + 0.5f);
     return iv > 255 ? 255 : iv;
@@ -279,7 +280,7 @@ static void on_slider_cct(lv_event_t* e)
 void cct_light_page_build(lv_obj_t* root, DevicePageData* d)
 {
     lv_obj_set_size(root, LV_PCT(100), LV_PCT(100));
-    lv_obj_set_style_bg_color(root, lv_color_hex(0x0D0D1A), LV_PART_MAIN); /* 深色背景，贴近参考图 */
+    lv_obj_set_style_bg_color(root, lv_color_hex(0xE3F2FD), LV_PART_MAIN); /* 浅蓝，与原始一致 */
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, LV_PART_MAIN);
 
     d->lbl_name = lv_label_create(root);
