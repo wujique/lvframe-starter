@@ -15,7 +15,7 @@
 /* ── 边框参数 ── */
 #define CCT_BORDER_W      20          /* 色带宽度（像素） */
 #define CCT_ANIM_TOTAL_MS 2000        /* 亮区绕行一圈时长（毫秒） */
-#define CCT_ANIM_TICK_MS  16          /* 定时器间隔（毫秒） */
+#define CCT_ANIM_TICK_MS  20          /* 定时器间隔（毫秒，50fps） */
 #define CCT_ANIM_TICKS    (CCT_ANIM_TOTAL_MS / CCT_ANIM_TICK_MS)
 #define CCT_SPOT_WIDTH    200         /* 亮区光斑宽度（周长像素） */
 

@@ -14,7 +14,7 @@
 /* ── 边框参数 ── */
 #define BORDER_W      20          /* 边框宽度（像素） */
 #define ANIM_TOTAL_MS 800         /* 流水灯一圈时长（毫秒） */
-#define ANIM_TICK_MS  16          /* 定时器间隔（毫秒，约 60fps） */
+#define ANIM_TICK_MS  20          /* 定时器间隔（毫秒，50fps） */
 #define ANIM_TICKS    (ANIM_TOTAL_MS / ANIM_TICK_MS)   /* 总帧数 ≈ 50 */
 
 /* ── HSV → lv_color_t（LVGL 9 内置 lv_color_hsv_to_rgb，但此处手写以免依赖） ── */
