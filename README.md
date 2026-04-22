@@ -57,7 +57,7 @@ A 480×480 touchscreen smart home panel with:
 sudo apt-get install build-essential cmake libsdl2-dev
 
 # 2. Clone (include submodules)
-git clone --recurse-submodules https://github.com/<you>/lvframe-starter.git
+git clone --recurse-submodules https://github.com/wujique/lvframe-starter.git
 cd lvframe-starter
 
 # 3. Build

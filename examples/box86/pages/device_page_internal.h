@@ -35,6 +35,13 @@ typedef struct {
     lv_timer_t*     border_timer;    /* 流水灯动画定时器 */
     int             border_hue_off;  /* 当前色相偏移 (0~359) */
     int             border_anim_ticks; /* 剩余动画帧数，0=静止 */
+
+    /* 色温灯专用：渐变边框 + 亮区流动 */
+    lv_obj_t*       cct_border_canvas;
+    lv_draw_buf_t*  cct_border_buf;
+    lv_timer_t*     cct_border_timer;
+    int             cct_spot_pos;      /* 亮区当前周长位置（像素），-1=静止 */
+    int             cct_anim_ticks;    /* 剩余动画帧数 */
 } DevicePageData;
 
 /* 各设备页构建/刷新函数声明 */
@@ -44,6 +51,7 @@ void light_page_destroy(DevicePageData* d);
 
 void cct_light_page_build(lv_obj_t* root, DevicePageData* d);
 void cct_light_page_refresh(DevicePageData* d);
+void cct_light_page_destroy(DevicePageData* d);
 
 void curtain_page_build(lv_obj_t* root, DevicePageData* d);
 void curtain_page_refresh(DevicePageData* d);

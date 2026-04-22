@@ -103,6 +103,8 @@ static void on_destroy(Page* page)
         event_bus_unsubscribe(page, EVENT_APP_MESSAGE);
         if (d->type == BOX86_DEVICE_TYPE_LIGHT) {
             light_page_destroy(d);
+        } else if (d->type == BOX86_DEVICE_TYPE_CCT) {
+            cct_light_page_destroy(d);
         }
         free(d);
     }
