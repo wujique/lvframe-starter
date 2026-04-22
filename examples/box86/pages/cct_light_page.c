@@ -19,13 +19,6 @@
 #define CCT_ANIM_TICKS    (CCT_ANIM_TOTAL_MS / CCT_ANIM_TICK_MS)
 #define CCT_SPOT_WIDTH    200         /* 亮区光斑宽度（周长像素） */
 
-/* ── 工具：按周长位置计算色相（0~359） ── */
-static int cct_hue_at(int pos, int perimeter)
-{
-    int h = (int)(360LL * pos / perimeter);
-    return ((h % 360) + 360) % 360;
-}
-
 /* ── 工具：高斯形亮区强度（0~255），dist 为到光斑中心的距离
  * sigma = CCT_SPOT_WIDTH/2.5，使光斑中间饱满、两端平滑渐暗 ── */
 static int spot_intensity(int dist)
@@ -55,7 +48,14 @@ static void canvas_set_pixel_argb(lv_draw_buf_t* buf, int32_t w, int32_t x, int3
     p[3] = a;
 }
 
-/* ── 绘制色带（带内边缘渐变 + 可选亮区叠加） ── */
+/* ── 绘制色带（按像素扫描，角落自然衔接） ──
+ *
+ * 对每个位于边框区域内的像素 (x, y)：
+ *   1. 计算到四条边的距离 d_top/d_bottom/d_left/d_right，取最小值 d_min
+ *      d_min=0 → 外边缘（不透明），d_min=bw → 内边缘（透明）
+ *   2. 色相按"最近边"的周长位置取值，角落处两边均等权重插值
+ *   3. 叠加亮区光斑（若动画进行中）
+ */
 static void cct_draw_border(DevicePageData* d)
 {
     lv_obj_t*      canvas = d->cct_border_canvas;
@@ -72,134 +72,88 @@ static void cct_draw_border(DevicePageData* d)
     memset(buf->data, 0, (size_t)buf->header.stride * (uint32_t)H);
 
     /*
-     * 周长：沿四边中心线，顺时针
-     *   上边：W 个像素
-     *   右边：H 个像素
-     *   下边：W 个像素
-     *   左边：H 个像素
-     * （与普通灯保持一致的简化处理）
+     * 顺时针周长定义（与动画 spot_pos 对应）：
+     *   上边  0         → W-1       (seg_pos = x)
+     *   右边  W         → W+H-1     (seg_pos = W + y)
+     *   下边  W+H       → 2W+H-1    (seg_pos = W+H + (W-1-x))
+     *   左边  2W+H      → 2W+2H-1   (seg_pos = 2W+H + (H-1-y))
      */
     int perimeter = 2 * (W + H);
-    int spot_pos  = d->cct_spot_pos; /* -1 表示无动画 */
+    int spot_pos  = d->cct_spot_pos;
 
-    /* 上边 */
-    for (int x = 0; x < W; x++) {
-        int seg_pos = x; /* 本段在周长上的位置 */
-        int hue = cct_hue_at(seg_pos, perimeter);
-        lv_color_t c = lv_color_hsv_to_rgb((uint16_t)hue, 200, 255);
-
-        for (int t = 0; t < bw; t++) {
-            /* t=0 外边缘（顶），t=bw-1 内边缘（靠页面中心）
-             * 内边缘透明度渐变到 0 */
-            uint8_t base_a = (uint8_t)(255 - (int)(255 * t / (bw - 1)));
-
-            /* 叠加亮区 */
-            uint8_t a = base_a;
-            if (spot_pos >= 0) {
-                int dist = seg_pos - spot_pos;
-                /* 环绕处理 */
-                if (dist > perimeter / 2)  dist -= perimeter;
-                if (dist < -perimeter / 2) dist += perimeter;
-                int si = spot_intensity(dist);
-                /* 亮区使 alpha 和亮度都提升 */
-                int new_a = base_a + (255 - base_a) * si / 255;
-                a = (uint8_t)(new_a > 255 ? 255 : new_a);
-                /* 颜色向白色偏移 */
-                int nr = c.red   + (255 - c.red)   * si / 255;
-                int ng = c.green + (255 - c.green) * si / 255;
-                int nb = c.blue  + (255 - c.blue)  * si / 255;
-                canvas_set_pixel_argb(buf, W, x, t,
-                    (uint8_t)nr, (uint8_t)ng, (uint8_t)nb, a);
-                continue;
-            }
-            canvas_set_pixel_argb(buf, W, x, t, c.red, c.green, c.blue, a);
-        }
-    }
-
-    /* 右边 */
     for (int y = 0; y < H; y++) {
-        int seg_pos = W + y;
-        int hue = cct_hue_at(seg_pos, perimeter);
-        lv_color_t c = lv_color_hsv_to_rgb((uint16_t)hue, 200, 255);
+        for (int x = 0; x < W; x++) {
+            /* 到四条外边缘的距离（0 = 外边缘） */
+            int d_top    = y;
+            int d_bottom = H - 1 - y;
+            int d_left   = x;
+            int d_right  = W - 1 - x;
 
-        for (int t = 0; t < bw; t++) {
-            /* t=0 外边缘（右侧），t=bw-1 内边缘 */
-            uint8_t base_a = (uint8_t)(255 - (int)(255 * t / (bw - 1)));
-            int px = W - 1 - t;
+            /* 只处理边框区域内的像素 */
+            int d_min = d_top;
+            if (d_bottom < d_min) d_min = d_bottom;
+            if (d_left   < d_min) d_min = d_left;
+            if (d_right  < d_min) d_min = d_right;
+            if (d_min >= bw) continue; /* 内部区域跳过 */
+
+            /* 基础 alpha：外边缘=255，内边缘=0，线性渐变 */
+            uint8_t base_a = (uint8_t)(255 - (int)(255 * d_min / (bw - 1)));
+
+            /* 周长位置：取距离最小的那条边
+             * 角落时两条边 d_min 相等，做线性插值 */
+            int seg_top    = x;                   /* 上边 */
+            int seg_right  = W + y;               /* 右边 */
+            int seg_bottom = W + H + (W - 1 - x); /* 下边 */
+            int seg_left   = 2*W + H + (H - 1 - y); /* 左边 */
+
+            /* 权重：距离越小权重越大，用 1/(d+0.5) 归一化 */
+            float w_top    = (d_top    < bw) ? 1.0f / (d_top    + 0.5f) : 0.0f;
+            float w_right  = (d_right  < bw) ? 1.0f / (d_right  + 0.5f) : 0.0f;
+            float w_bottom = (d_bottom < bw) ? 1.0f / (d_bottom + 0.5f) : 0.0f;
+            float w_left   = (d_left   < bw) ? 1.0f / (d_left   + 0.5f) : 0.0f;
+            float w_sum = w_top + w_right + w_bottom + w_left;
+            if (w_sum < 1e-6f) continue;
+
+            /* 加权平均色相（HSV 色相环形插值，用向量法）*/
+            float sx = 0.0f, sy = 0.0f;
+            float pi2 = 6.28318530718f;
+            sx += w_top    * cosf(pi2 * seg_top    / perimeter);
+            sy += w_top    * sinf(pi2 * seg_top    / perimeter);
+            sx += w_right  * cosf(pi2 * seg_right  / perimeter);
+            sy += w_right  * sinf(pi2 * seg_right  / perimeter);
+            sx += w_bottom * cosf(pi2 * seg_bottom / perimeter);
+            sy += w_bottom * sinf(pi2 * seg_bottom / perimeter);
+            sx += w_left   * cosf(pi2 * seg_left   / perimeter);
+            sy += w_left   * sinf(pi2 * seg_left   / perimeter);
+            float angle = atan2f(sy / w_sum, sx / w_sum);
+            if (angle < 0) angle += pi2;
+            int hue = (int)(angle / pi2 * 360.0f + 0.5f) % 360;
+
+            lv_color_t c = lv_color_hsv_to_rgb((uint16_t)hue, 200, 255);
+
+            /* 周长代表位置：取权重最大的那条边用于光斑距离计算 */
+            int seg_dominant = seg_top;
+            float w_dominant = w_top;
+            if (w_right  > w_dominant) { w_dominant = w_right;  seg_dominant = seg_right; }
+            if (w_bottom > w_dominant) { w_dominant = w_bottom; seg_dominant = seg_bottom; }
+            if (w_left   > w_dominant) {                        seg_dominant = seg_left; }
+
             uint8_t a = base_a;
             if (spot_pos >= 0) {
-                int dist = seg_pos - spot_pos;
+                int dist = seg_dominant - spot_pos;
                 if (dist > perimeter / 2)  dist -= perimeter;
                 if (dist < -perimeter / 2) dist += perimeter;
                 int si = spot_intensity(dist);
-                int new_a = base_a + (255 - base_a) * si / 255;
+                int new_a = (int)base_a + (255 - (int)base_a) * si / 255;
                 a = (uint8_t)(new_a > 255 ? 255 : new_a);
-                int nr = c.red   + (255 - c.red)   * si / 255;
-                int ng = c.green + (255 - c.green) * si / 255;
-                int nb = c.blue  + (255 - c.blue)  * si / 255;
-                canvas_set_pixel_argb(buf, W, px, y,
+                int nr = (int)c.red   + (255 - (int)c.red)   * si / 255;
+                int ng = (int)c.green + (255 - (int)c.green) * si / 255;
+                int nb = (int)c.blue  + (255 - (int)c.blue)  * si / 255;
+                canvas_set_pixel_argb(buf, W, x, y,
                     (uint8_t)nr, (uint8_t)ng, (uint8_t)nb, a);
                 continue;
             }
-            canvas_set_pixel_argb(buf, W, px, y, c.red, c.green, c.blue, a);
-        }
-    }
-
-    /* 下边（从右到左，顺时针） */
-    for (int x = W - 1; x >= 0; x--) {
-        int seg_pos = W + H + (W - 1 - x);
-        int hue = cct_hue_at(seg_pos, perimeter);
-        lv_color_t c = lv_color_hsv_to_rgb((uint16_t)hue, 200, 255);
-
-        for (int t = 0; t < bw; t++) {
-            /* t=0 外边缘（底部），t=bw-1 内边缘 */
-            uint8_t base_a = (uint8_t)(255 - (int)(255 * t / (bw - 1)));
-            int py = H - 1 - t;
-            uint8_t a = base_a;
-            if (spot_pos >= 0) {
-                int dist = seg_pos - spot_pos;
-                if (dist > perimeter / 2)  dist -= perimeter;
-                if (dist < -perimeter / 2) dist += perimeter;
-                int si = spot_intensity(dist);
-                int new_a = base_a + (255 - base_a) * si / 255;
-                a = (uint8_t)(new_a > 255 ? 255 : new_a);
-                int nr = c.red   + (255 - c.red)   * si / 255;
-                int ng = c.green + (255 - c.green) * si / 255;
-                int nb = c.blue  + (255 - c.blue)  * si / 255;
-                canvas_set_pixel_argb(buf, W, x, py,
-                    (uint8_t)nr, (uint8_t)ng, (uint8_t)nb, a);
-                continue;
-            }
-            canvas_set_pixel_argb(buf, W, x, py, c.red, c.green, c.blue, a);
-        }
-    }
-
-    /* 左边（从下到上，顺时针） */
-    for (int y = H - 1; y >= 0; y--) {
-        int seg_pos = W + H + W + (H - 1 - y);
-        int hue = cct_hue_at(seg_pos, perimeter);
-        lv_color_t c = lv_color_hsv_to_rgb((uint16_t)hue, 200, 255);
-
-        for (int t = 0; t < bw; t++) {
-            /* t=0 外边缘（左侧），t=bw-1 内边缘 */
-            uint8_t base_a = (uint8_t)(255 - (int)(255 * t / (bw - 1)));
-            int px = t;
-            uint8_t a = base_a;
-            if (spot_pos >= 0) {
-                int dist = seg_pos - spot_pos;
-                if (dist > perimeter / 2)  dist -= perimeter;
-                if (dist < -perimeter / 2) dist += perimeter;
-                int si = spot_intensity(dist);
-                int new_a = base_a + (255 - base_a) * si / 255;
-                a = (uint8_t)(new_a > 255 ? 255 : new_a);
-                int nr = c.red   + (255 - c.red)   * si / 255;
-                int ng = c.green + (255 - c.green) * si / 255;
-                int nb = c.blue  + (255 - c.blue)  * si / 255;
-                canvas_set_pixel_argb(buf, W, px, y,
-                    (uint8_t)nr, (uint8_t)ng, (uint8_t)nb, a);
-                continue;
-            }
-            canvas_set_pixel_argb(buf, W, px, y, c.red, c.green, c.blue, a);
+            canvas_set_pixel_argb(buf, W, x, y, c.red, c.green, c.blue, a);
         }
     }
 
