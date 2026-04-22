@@ -138,22 +138,20 @@ static void cct_draw_border(DevicePageData* d)
             if (w_bottom > w_dominant) { w_dominant = w_bottom; seg_dominant = seg_bottom; }
             if (w_left   > w_dominant) {                        seg_dominant = seg_left; }
 
-            uint8_t a = base_a;
             if (spot_pos >= 0) {
                 int dist = seg_dominant - spot_pos;
                 if (dist > perimeter / 2)  dist -= perimeter;
                 if (dist < -perimeter / 2) dist += perimeter;
                 int si = spot_intensity(dist);
-                int new_a = (int)base_a + (255 - (int)base_a) * si / 255;
-                a = (uint8_t)(new_a > 255 ? 255 : new_a);
+                /* alpha 保持 base_a 渐变不变，只将颜色向白色偏移 */
                 int nr = (int)c.red   + (255 - (int)c.red)   * si / 255;
                 int ng = (int)c.green + (255 - (int)c.green) * si / 255;
                 int nb = (int)c.blue  + (255 - (int)c.blue)  * si / 255;
                 canvas_set_pixel_argb(buf, W, x, y,
-                    (uint8_t)nr, (uint8_t)ng, (uint8_t)nb, a);
+                    (uint8_t)nr, (uint8_t)ng, (uint8_t)nb, base_a);
                 continue;
             }
-            canvas_set_pixel_argb(buf, W, x, y, c.red, c.green, c.blue, a);
+            canvas_set_pixel_argb(buf, W, x, y, c.red, c.green, c.blue, base_a);
         }
     }
 
