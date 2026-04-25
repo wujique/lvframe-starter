@@ -364,3 +364,16 @@ Page* home_page_creator(void* params)
     };
     return page_create(&lc, params);
 }
+
+void home_page_reset_to_first(Page* home_page)
+{
+    HomePageData* d = page_get_user_data(home_page);
+    if (!d) return;
+
+    /* 关闭设置面板 */
+    lv_obj_set_y(d->settings_cont, -SCREEN_H);
+    d->pull_state = PULL_STATE_IDLE;
+
+    /* 切换到第一个设备页 */
+    swipe_container_switch_to(d->tileview, 0);
+}

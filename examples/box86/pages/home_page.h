@@ -12,4 +12,6 @@ typedef struct {
 
 Page* home_page_creator(void* params);
 
+void home_page_reset_to_first(Page* home_page);
+
 #endif /* HOME_PAGE_H */

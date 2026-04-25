@@ -1,6 +1,7 @@
 #include "screensaver.h"
 #include "models/device_store.h"
 #include "lvframe/page_manager.h"
+#include "pages/home_page.h"
 #include "lvgl/lvgl.h"
 
 typedef enum {
@@ -88,8 +89,10 @@ void screensaver_wake(void)
     if (g_state == SA_STATE_BLANK) {
         page_manager_back();   /* 息屏 → 屏保页 (或首页，如果屏保关闭) */
         if (sys.wake_action == 1) {
-            /* 回到首页 */
+            /* 回到首页并重置为第一设备页 + 关闭设置面板 */
             page_manager_back_to_home();
+            Page* home = page_manager_get_current();
+            home_page_reset_to_first(home);
             g_state = SA_STATE_NORMAL;
         } else {
             /* 回到屏保，屏保重新开始计时 */
