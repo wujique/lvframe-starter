@@ -13,7 +13,6 @@ static lv_timer_t*        g_timer = NULL;
 static lv_device_store_t* g_store = NULL;
 static ScreensaverState   g_state = SA_STATE_NORMAL;
 static int                g_saver_ticks = 0;
-static int                g_wake_requested = 0;
 
 static void enter_screensaver(void)
 {
@@ -50,24 +49,6 @@ static void saver_timer_cb(lv_timer_t* timer)
     box86_system_model_t sys;
     box86_store_snapshot_system(g_store, &sys);
 
-    /* 处理外部唤醒请求 */
-    if (g_wake_requested) {
-        g_wake_requested = 0;
-        if (g_state == SA_STATE_BLANK) {
-            page_manager_back();
-            if (sys.wake_action == 1) {
-                page_manager_back_to_home();
-            }
-        } else if (g_state == SA_STATE_SCREENSAVER) {
-            page_manager_back();
-        }
-        g_state = SA_STATE_NORMAL;
-        g_saver_ticks = 0;
-        /* 重置 LVGL 空闲计时 */
-        lv_display_trigger_activity(NULL);
-        return;
-    }
-
     uint32_t inactive_ms = lv_display_get_inactive_time(NULL);
 
     switch (g_state) {
@@ -93,7 +74,6 @@ void screensaver_init(lv_device_store_t* store)
     g_store = store;
     g_state = SA_STATE_NORMAL;
     g_saver_ticks = 0;
-    g_wake_requested = 0;
 
     /* 1s 定时器 */
     g_timer = lv_timer_create(saver_timer_cb, 1000, NULL);
@@ -101,5 +81,25 @@ void screensaver_init(lv_device_store_t* store)
 
 void screensaver_wake(void)
 {
-    g_wake_requested = 1;
+    if (g_state == SA_STATE_NORMAL) return;
+
+    box86_system_model_t sys;
+    box86_store_snapshot_system(g_store, &sys);
+
+    /* 统一处理页面导航 */
+    if (g_state == SA_STATE_BLANK) {
+        page_manager_back();   /* 息屏 → 屏保页 (或首页，如果屏保关闭) */
+        if (sys.wake_action == 1) {
+            page_manager_back_to_home();
+        }
+    } else if (g_state == SA_STATE_SCREENSAVER) {
+        page_manager_back();   /* 屏保 → 首页 */
+    }
+
+    /* 重置状态 */
+    g_state = SA_STATE_NORMAL;
+    g_saver_ticks = 0;
+
+    /* 重置 LVGL 空闲计时，防止一回到首页又立即触发屏保 */
+    lv_display_trigger_activity(NULL);
 }

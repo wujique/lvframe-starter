@@ -1,26 +1,12 @@
 #include "blank_page.h"
 #include "../screensaver.h"
-#include "../models/device_store.h"
-#include "lvframe/page_manager.h"
 #include <stdlib.h>
 
 static void on_screen_clicked(lv_event_t* e)
 {
-    Page* page = lv_event_get_user_data(e);
-    (void)page;
+    (void)e;
     lv_event_stop_bubbling(e);
-
-    lv_device_store_t* store = page_get_user_data(page);
-    box86_system_model_t sys;
-    box86_store_snapshot_system(store, &sys);
-
-    if (sys.wake_action == 0) {
-        /* 回到屏保页 */
-        page_manager_back();
-    } else {
-        /* 回到首页 */
-        page_manager_back_to_home();
-    }
+    screensaver_wake();
 }
 
 static void on_create(Page* page, void* params)
