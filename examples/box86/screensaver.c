@@ -21,8 +21,6 @@ static void enter_screensaver(void)
     box86_system_model_t sys;
     box86_store_snapshot_system(g_store, &sys);
 
-    /* 当前是否在首页？不是则先回首页 */
-    page_manager_back_to_home();
     g_saver_ticks = 0;
     g_state = SA_STATE_SCREENSAVER;
 
