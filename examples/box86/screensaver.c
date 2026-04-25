@@ -90,16 +90,20 @@ void screensaver_wake(void)
     if (g_state == SA_STATE_BLANK) {
         page_manager_back();   /* 息屏 → 屏保页 (或首页，如果屏保关闭) */
         if (sys.wake_action == 1) {
+            /* 回到首页 */
             page_manager_back_to_home();
+            g_state = SA_STATE_NORMAL;
+        } else {
+            /* 回到屏保，屏保重新开始计时 */
+            g_state = SA_STATE_SCREENSAVER;
         }
     } else if (g_state == SA_STATE_SCREENSAVER) {
         page_manager_back();   /* 屏保 → 首页 */
+        g_state = SA_STATE_NORMAL;
     }
 
-    /* 重置状态 */
-    g_state = SA_STATE_NORMAL;
     g_saver_ticks = 0;
 
-    /* 重置 LVGL 空闲计时，防止一回到首页又立即触发屏保 */
+    /* 重置 LVGL 空闲计时 */
     lv_display_trigger_activity(NULL);
 }
