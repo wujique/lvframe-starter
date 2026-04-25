@@ -247,9 +247,11 @@
 
 ### 关键逻辑
 
-1. **从非首页进入屏保/息屏**：先执行 `page_manager_back_to_home()` 回到首页，再 push 屏保页/息屏页
-2. **息屏触摸唤醒**：BLANK page 消费 `LV_EVENT_CLICKED`（不冒泡），防止回到首页后二次触发首页功能
-3. **屏保页触摸退出**：Screensaver page 消费 `LV_EVENT_CLICKED`，唤醒退出
+1. **屏保/息屏直接覆盖当前页面**：不强制回首页，保留用户上下文。唤醒时自然回到原页面
+2. **息屏触摸唤醒**：BLANK page 消费 `LV_EVENT_CLICKED`（不冒泡），由 `screensaver_wake()` 统一处理页面导航
+   - `wake_action=0`：`page_manager_back()` → 回到屏保页，屏保重新计时
+   - `wake_action=1`：`page_manager_back()` + `page_manager_back_to_home()` → 回到首页
+3. **屏保页触摸退出**：`page_manager_back()` → 回到进入屏保前的页面
 4. **屏保关闭时**：直接跳过屏保页，进入息屏
 5. **唤醒事件接口**：`screensaver_wake()` 供 Shell 命令 `wake` 调用
 
