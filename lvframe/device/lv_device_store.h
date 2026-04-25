@@ -20,8 +20,8 @@ typedef struct {
     void*             devices[LV_MAX_DEVICES]; /* 指向各设备模型堆内存 */
     int               count;
     int               order[LV_MAX_DEVICES];   /* 显示顺序，存 devices 下标 */
-    lv_system_model_t system;                  /* 系统全局状态 */
     lv_mutex_t        mutex;
+    void*             app_system;  /* 应用层自定义系统数据 */
 } lv_device_store_t;
 
 /* ── 生命周期 ── */

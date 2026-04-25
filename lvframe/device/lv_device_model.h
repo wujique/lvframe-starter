@@ -23,13 +23,6 @@ typedef struct {
     char name[LV_DEVICE_NAME_MAX];    /* 设备名称 */
 } lv_device_base_t;
 
-/* ── 系统模型（全局设置，由 lv_device_store_t 持有） ── */
-typedef struct {
-    int brightness;       /* 屏幕亮度 0~100 */
-    int volume;           /* 音量 0~100 */
-    int network_enabled;  /* 网络开关 0=关 1=开 */
-} lv_system_model_t;
-
 #ifdef __cplusplus
 }
 #endif

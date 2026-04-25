@@ -126,10 +126,16 @@ int box86_store_set_curtain_prop(lv_device_store_t* store, int id, const char* f
 int box86_store_set_system(lv_device_store_t* store, const char* field, int value)
 {
     lv_mutex_lock(&store->mutex);
+    box86_system_model_t* sys = (box86_system_model_t*)store->app_system;
+    if (!sys) { lv_mutex_unlock(&store->mutex); return -1; }
     int ret = 0;
-    if      (strcmp(field, "brightness") == 0) store->system.brightness      = value < 0 ? 0 : (value > 100 ? 100 : value);
-    else if (strcmp(field, "volume")     == 0) store->system.volume          = value < 0 ? 0 : (value > 100 ? 100 : value);
-    else if (strcmp(field, "network")    == 0) store->system.network_enabled = value ? 1 : 0;
+    if      (strcmp(field, "brightness")       == 0) sys->brightness          = value < 0 ? 0 : (value > 100 ? 100 : value);
+    else if (strcmp(field, "volume")           == 0) sys->volume              = value < 0 ? 0 : (value > 100 ? 100 : value);
+    else if (strcmp(field, "network")          == 0) sys->network_enabled     = value ? 1 : 0;
+    else if (strcmp(field, "screensaver")      == 0) sys->screensaver_enabled = value ? 1 : 0;
+    else if (strcmp(field, "sa_timeout")       == 0) sys->screensaver_timeout = value < 5 ? 5 : (value > 60 ? 60 : value);
+    else if (strcmp(field, "sa_duration")      == 0) sys->screensaver_duration= value < 5 ? 5 : (value > 60 ? 60 : value);
+    else if (strcmp(field, "wake_action")      == 0) sys->wake_action         = value ? 1 : 0;
     else ret = -1;
     lv_mutex_unlock(&store->mutex);
     return ret;
@@ -176,8 +182,26 @@ int box86_store_snapshot_curtain(lv_device_store_t* store, int id, box86_curtain
 void box86_store_snapshot_system(lv_device_store_t* store, box86_system_model_t* out)
 {
     lv_mutex_lock(&store->mutex);
-    out->brightness      = store->system.brightness;
-    out->volume          = store->system.volume;
-    out->network_enabled = store->system.network_enabled;
+    box86_system_model_t* sys = (box86_system_model_t*)store->app_system;
+    if (sys) *out = *sys;
+    else memset(out, 0, sizeof(*out));
+    lv_mutex_unlock(&store->mutex);
+}
+
+/* ── 系统参数初始化 ── */
+void box86_store_init_system(lv_device_store_t* store)
+{
+    lv_mutex_lock(&store->mutex);
+    box86_system_model_t* sys = calloc(1, sizeof(box86_system_model_t));
+    if (sys) {
+        sys->brightness           = 80;
+        sys->volume               = 50;
+        sys->network_enabled      = 0;
+        sys->screensaver_enabled  = 1;
+        sys->screensaver_timeout  = 10;
+        sys->screensaver_duration = 20;
+        sys->wake_action          = 0;
+        store->app_system = sys;
+    }
     lv_mutex_unlock(&store->mutex);
 }

@@ -52,9 +52,13 @@ typedef struct {
 
 /* ── 系统模型（全局设置） ── */
 typedef struct {
-    int brightness;      /* 屏幕亮度 0~100 */
-    int volume;          /* 音量 0~100 */
-    int network_enabled; /* 网络开关 0=关 1=开 */
+    int brightness;              /* 屏幕亮度 0~100 */
+    int volume;                  /* 音量 0~100 */
+    int network_enabled;         /* 网络开关 0=关 1=开 */
+    int screensaver_enabled;     /* 屏保开关 0=关 1=开 */
+    int screensaver_timeout;     /* 无操作待机时间(s) */
+    int screensaver_duration;    /* 屏保维持时间(s) */
+    int wake_action;             /* 息屏唤醒后: 0=屏保页 1=首页 */
 } box86_system_model_t;
 
 #ifdef __cplusplus

@@ -125,6 +125,7 @@ list(REMOVE_ITEM APP_SOURCES "${CMAKE_SOURCE_DIR}/pages/device_page_component.c"
 
 add_executable(box86 ${APP_SOURCES} ${LVGL_FREETYPE_SRCS}
     ${CMAKE_SOURCE_DIR}/font.c
+    ${CMAKE_SOURCE_DIR}/screensaver.c
 )
 target_include_directories(box86 PRIVATE ${ROOT_DIR} ${CMAKE_SOURCE_DIR})
 target_link_libraries(box86 PRIVATE lvframe platform lvgl ${FONT_ENGINE_LIBS} m pthread)

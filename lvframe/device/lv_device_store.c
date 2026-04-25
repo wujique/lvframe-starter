@@ -6,9 +6,6 @@ void lv_device_store_init(lv_device_store_t* store)
 {
     memset(store, 0, sizeof(lv_device_store_t));
     lv_mutex_init(&store->mutex);
-    store->system.brightness      = 80;
-    store->system.volume          = 50;
-    store->system.network_enabled = 0;
 }
 
 void lv_device_store_deinit(lv_device_store_t* store)

@@ -115,8 +115,10 @@ static void handle_shell_cmd(Business* biz, char* line)
         if (strcmp(target, "system") == 0) {
             box86_system_model_t sys;
             box86_store_snapshot_system(biz->store, &sys);
-            shell_log("brightness=%d volume=%d network=%d\n",
-                      sys.brightness, sys.volume, sys.network_enabled);
+            shell_log("brightness=%d volume=%d network=%d saver=%d timeout=%d duration=%d wake_action=%d\n",
+                      sys.brightness, sys.volume, sys.network_enabled,
+                      sys.screensaver_enabled, sys.screensaver_timeout,
+                      sys.screensaver_duration, sys.wake_action);
         } else {
             int id = atoi(target);
             lv_device_base_t bases[LV_MAX_DEVICES];
@@ -226,8 +228,16 @@ static void handle_shell_cmd(Business* biz, char* line)
         return;
     }
 
+    /* wake — 模拟触摸唤醒 */
+    if (strcmp(cmd, "wake") == 0) {
+        extern void screensaver_wake(void);
+        screensaver_wake();
+        shell_log("wake triggered\n");
+        return;
+    }
+
     shell_log("unknown command: %s\n", cmd);
-    shell_log("commands: list | get <id|system> | add <type> <name> | del <id> | move <id> <pos> | set <id|system> <field> <value>\n");
+    shell_log("commands: list | get <id|system> | add <type> <name> | del <id> | move <id> <pos> | set <id|system> <field> <value> | wake\n");
 }
 
 /* ── 业务线程主循环 ── */

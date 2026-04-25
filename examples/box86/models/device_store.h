@@ -24,13 +24,15 @@ int box86_store_add_curtain(lv_device_store_t* store, const char* name);
 int box86_store_set_light_prop(lv_device_store_t* store, int id, const char* field, int value);
 int box86_store_set_cct_prop(lv_device_store_t* store, int id, const char* field, int value);
 int box86_store_set_curtain_prop(lv_device_store_t* store, int id, const char* field, int value);
-int box86_store_set_system(lv_device_store_t* store, const char* field, int value);
+/* ── 系统参数管理 ── */
+void box86_store_init_system(lv_device_store_t* store);
+int  box86_store_set_system(lv_device_store_t* store, const char* field, int value);
+void box86_store_snapshot_system(lv_device_store_t* store, box86_system_model_t* out);
 
 /* ── 快照接口（UI 线程调用，加锁后拷贝，线程安全） ── */
 int  box86_store_snapshot_light(lv_device_store_t* store, int id, box86_light_model_t* out);
 int  box86_store_snapshot_cct(lv_device_store_t* store, int id, box86_cct_light_model_t* out);
 int  box86_store_snapshot_curtain(lv_device_store_t* store, int id, box86_curtain_model_t* out);
-void box86_store_snapshot_system(lv_device_store_t* store, box86_system_model_t* out);
 
 #ifdef __cplusplus
 }

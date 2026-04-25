@@ -10,6 +10,9 @@
 #include "models/device_store.h"
 #include "pages/home_page.h"
 #include "pages/more_settings_page.h"
+#include "pages/screensaver_page.h"
+#include "pages/blank_page.h"
+#include "screensaver.h"
 #include "config.h"
 #include "font.h"
 
@@ -45,6 +48,7 @@ int main(void)
     app_bus_init(&g_bus);
     printf("[main] AppBus initialized\n");
     lv_device_store_init(&g_store);
+    box86_store_init_system(&g_store);
 
     /* 5. 创建默认设备：一个普通灯 */
     box86_store_add_light(&g_store, "Living Room Light");
@@ -58,6 +62,11 @@ int main(void)
     /* 7. 注册页面 */
     page_manager_register("Home",        home_page_creator);
     page_manager_register("MoreSettings", more_settings_page_creator);
+    page_manager_register("Screensaver", screensaver_page_creator);
+    page_manager_register("BlankScreen",  blank_page_creator);
+
+    /* 初始化屏保状态机 */
+    screensaver_init(&g_store);
 
     /* 8. 打开首页 */
     HomePageParams hp = { .bus = &g_bus, .store = &g_store };
