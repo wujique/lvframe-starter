@@ -40,7 +40,9 @@ static void on_card_clicked(lv_event_t* e)
 
 static void on_create(Page* page, void* params)
 {
-    DeviceInfoData* d = (DeviceInfoData*)page_get_user_data(page);
+    DeviceInfoData* d = (DeviceInfoData*)params;
+    /* 保存到 user_data 供 on_destroy 使用 */
+    page_set_user_data(page, d);
     lv_obj_t* root = page_get_root(page);
 
     /* ── 全屏半透明黑色背景（40% 不透明度） ── */
@@ -171,8 +173,7 @@ Page* device_info_page_creator(void* params)
         .on_create  = on_create,
         .on_destroy = on_destroy,
     };
-    Page* page = page_create(&lc, NULL);
+    Page* page = page_create(&lc, d);
     if (!page) { free(d); return NULL; }
-    page_set_user_data(page, d);
     return page;
 }
