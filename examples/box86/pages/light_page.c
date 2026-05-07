@@ -8,7 +8,6 @@
 
 #include "device_page_internal.h"
 #include "device_info_page.h"
-#include "lvframe/page_manager.h"
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -125,12 +124,8 @@ static void on_device_info(lv_event_t* e)
     DevicePageData* d = lv_event_get_user_data(e);
     if (!d) return;
 
-    DeviceInfoPageParams params = {
-        .bus       = d->bus,
-        .store     = d->store,
-        .device_id = d->device_id,
-    };
-    page_manager_open("DeviceInfo", &params);
+    lv_obj_t* root = lv_obj_get_parent(d->btn_toggle);
+    device_info_overlay_open(root, d->store, d->device_id);
 }
 
 /* ── 开关按钮回调 ── */

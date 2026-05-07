@@ -12,7 +12,6 @@
 #include "pages/more_settings_page.h"
 #include "pages/screensaver_page.h"
 #include "pages/blank_page.h"
-#include "pages/device_info_page.h"
 #include "screensaver.h"
 #include "config.h"
 #include "font.h"
@@ -65,7 +64,6 @@ int main(void)
     page_manager_register("MoreSettings", more_settings_page_creator);
     page_manager_register("Screensaver", screensaver_page_creator);
     page_manager_register("BlankScreen",  blank_page_creator);
-    page_manager_register("DeviceInfo",   device_info_page_creator);
 
     /* 初始化屏保状态机 */
     screensaver_init(&g_store);
