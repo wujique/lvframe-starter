@@ -7,6 +7,8 @@
  */
 
 #include "device_page_internal.h"
+#include "device_info_page.h"
+#include "lvframe/page_manager.h"
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -117,6 +119,20 @@ static void start_border_anim(DevicePageData* d)
     d->border_anim_ticks = ANIM_TICKS;
 }
 
+/* ── 设备信息按钮回调 ── */
+static void on_device_info(lv_event_t* e)
+{
+    DevicePageData* d = lv_event_get_user_data(e);
+    if (!d) return;
+
+    DeviceInfoPageParams params = {
+        .bus       = d->bus,
+        .store     = d->store,
+        .device_id = d->device_id,
+    };
+    page_manager_open("DeviceInfo", &params);
+}
+
 /* ── 开关按钮回调 ── */
 static void on_toggle(lv_event_t* e)
 {
@@ -160,6 +176,16 @@ void light_page_build(lv_obj_t* root, DevicePageData* d)
     d->lbl_status = lv_label_create(root);
     lv_label_set_text(d->lbl_status, "---");
     lv_obj_align(d->lbl_status, LV_ALIGN_CENTER, 0, 60);
+
+    /* 设备信息按钮 */
+    lv_obj_t* btn_info = lv_button_create(root);
+    lv_obj_set_size(btn_info, 120, 40);
+    lv_obj_align(btn_info, LV_ALIGN_CENTER, 0, 120);
+    lv_obj_set_style_bg_color(btn_info, lv_color_hex(0x607D8B), LV_PART_MAIN);
+    lv_obj_t* lbl_info = lv_label_create(btn_info);
+    lv_label_set_text(lbl_info, "设备信息");
+    lv_obj_center(lbl_info);
+    lv_obj_add_event_cb(btn_info, on_device_info, LV_EVENT_CLICKED, d);
 
     /* 汉字显示测试 */
     lv_obj_t* lbl_test = lv_label_create(root);
