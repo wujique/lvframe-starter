@@ -3,8 +3,8 @@
  * @brief        设备页统一入口，按设备类型（普通灯/色温灯/电动窗帘）分发构建
  *
  * @author       pochard(email@xxx.com)
- * @version      0.2
- * @date         2026-08-15
+ * @version      0.3
+ * @date         2026-08-16
  * @copyright    Copyright (c) 2026..
  */
 #ifndef DEVICE_PAGE_H

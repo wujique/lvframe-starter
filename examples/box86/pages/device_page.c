@@ -3,8 +3,8 @@
  * @brief        设备页按设备类型分发构建与生命周期管理，绑定槽并按 object 匹配
  *
  * @author       pochard(email@xxx.com)
- * @version      0.2
- * @date         2026-08-15
+ * @version      0.3
+ * @date         2026-08-16
  * @copyright    Copyright (c) 2026..
  */
 
