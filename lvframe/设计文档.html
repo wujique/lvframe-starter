@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LVGL 嵌入式 UI 框架设计文档（v2 · 消息槽）</title>
+<style>
+:root{
+  --bg:#f5f6f8; --card:#ffffff; --text:#2b2f36; --muted:#6b7280;
+  --accent:#1a73e8; --accent-dark:#1558b0; --border:#e3e6ea;
+  --indigo:#4f46e5; --teal:#0d9488; --purple:#7c3aed; --orange:#ea580c; --slate:#334155;
+  --code-bg:#1e2430; --code-text:#d6dae3; --quote-bg:#eef4fd; --quote-border:#1a73e8;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  line-height:1.75;font-size:15px}
+.container{max-width:1060px;margin:0 auto;padding:0 24px}
+header{background:linear-gradient(135deg,#0d9488 0%,#0f3d8c 100%);color:#fff;padding:48px 0 40px}
+header .container{padding-bottom:0}
+header h1{margin:0 0 8px;font-size:28px;font-weight:700;letter-spacing:.5px}
+header p.sub{margin:0;opacity:.85;font-size:15px}
+.meta{display:flex;flex-wrap:wrap;gap:8px 24px;margin-top:18px;font-size:13px;opacity:.9}
+.meta span{white-space:nowrap}
+nav.toc{background:var(--card);border:1px solid var(--border);border-radius:10px;
+  margin:28px 0;padding:18px 24px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+nav.toc h2{margin:0 0 10px;font-size:15px;color:var(--muted);font-weight:600}
+nav.toc ol{margin:0;padding-left:22px;columns:2;column-gap:40px}
+nav.toc li{margin:3px 0}
+nav.toc a{color:var(--accent);text-decoration:none}
+nav.toc a:hover{text-decoration:underline}
+h2{border-bottom:2px solid var(--border);padding-bottom:8px;margin:44px 0 18px;font-size:22px}
+h2 .no{display:inline-block;background:var(--accent);color:#fff;border-radius:6px;
+  font-size:14px;padding:2px 10px;margin-right:10px;vertical-align:3px}
+h3{margin:30px 0 12px;font-size:17px;color:var(--accent-dark)}
+h4{margin:22px 0 8px;font-size:15px}
+p{margin:10px 0}
+ul,ol{margin:10px 0;padding-left:24px}
+li{margin:4px 0}
+strong{color:var(--accent-dark)}
+a{color:var(--accent)}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px;
+  background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#eef2f7;font-weight:600;white-space:nowrap}
+tr:nth-child(even) td{background:#fafbfc}
+pre{background:var(--code-bg);color:var(--code-text);border-radius:8px;padding:14px 16px;
+  overflow-x:auto;font-size:13px;line-height:1.6;margin:12px 0;
+  font-family:Consolas,"SF Mono",Menlo,Monaco,"Courier New",monospace}
+code{font-family:Consolas,"SF Mono",Menlo,Monaco,"Courier New",monospace;
+  background:#eef1f5;color:#c7254e;border-radius:4px;padding:1px 5px;font-size:13px}
+pre code{background:none;color:inherit;padding:0;font-size:13px}
+blockquote{margin:14px 0;padding:10px 16px;background:var(--quote-bg);
+  border-left:4px solid var(--quote-border);border-radius:0 8px 8px 0;color:#33475c}
+blockquote p{margin:4px 0}
+.note{font-size:13px;color:var(--muted)}
+.warn{background:#fff7e6;border-left:4px solid #f5a623;padding:10px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+.warn p{margin:4px 0}
+figure{background:#fff;border:1px solid var(--border);border-radius:12px;
+  padding:16px 16px 10px;margin:20px 0;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+figure figcaption{text-align:center;font-size:13px;color:var(--muted);margin-top:8px}
+svg.fig{width:100%;height:auto;display:block;font-family:inherit}
+svg.fig text{font-family:inherit}
+.grid{display:grid;gap:12px;margin:14px 0}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+@media(max-width:820px){.g2,.g3{grid-template-columns:1fr}}
+.fcard{background:var(--card);border:1px solid var(--border);border-left:4px solid var(--accent);
+  border-radius:10px;padding:12px 14px;font-size:13.5px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.fcard b{font-size:14px}
+.fcard.pm{border-left-color:var(--indigo)} .fcard.pg{border-left-color:var(--accent)}
+.fcard.sl{border-left-color:var(--teal)}  .fcard.sw{border-left-color:var(--purple)}
+.fcard.dv{border-left-color:var(--orange)}
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;background:#fff;
+  border:1px solid var(--border);border-radius:10px;padding:14px;margin:12px 0}
+.flow .fstep{background:#eef4fd;border:1px solid #c5d8f5;border-radius:8px;
+  padding:8px 10px;font-size:13px;flex:1;min-width:130px}
+.flow .fstep.gray{background:#f8fafc;border-color:#dbe2ea}
+.flow .fstep.orange{background:#fff7ed;border-color:#fed7aa}
+.flow .fstep.green{background:#f0fdf4;border-color:#bbf7d0}
+.fn{display:inline-block;background:var(--accent);color:#fff;border-radius:50%;
+  width:20px;height:20px;line-height:20px;text-align:center;font-size:11px;margin-right:6px;flex-shrink:0}
+.farrow{display:flex;align-items:center;color:#94a3b8;font-size:18px;font-weight:700;flex-shrink:0}
+@media(max-width:820px){.farrow{transform:rotate(90deg)}}
+footer{margin:60px 0 40px;padding-top:16px;border-top:1px solid var(--border);
+  color:var(--muted);font-size:13px}
+@media(max-width:720px){nav.toc ol{columns:1}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <h1>LVGL 嵌入式 UI 框架设计文档 v2（消息槽）</h1>
+    <p class="sub">方案设计 + 模块级详细设计 · 页面生命周期 · 导航栈 · 信号式消息槽</p>
+    <div class="meta">
+      <span>文档类型：设计方案 + 详细设计（合并）</span>
+      <span>框架版本：lvframe v0.2（拆分）</span>
+      <span>LVGL 版本：v9.4</span>
+      <span>最后更新：2026-08-15</span>
+      <span>状态：修订中（方案未定 · 禁止修改代码）</span>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+<nav class="toc">
+  <h2>目录</h2>
+  <ol>
+    <li><a href="#overview">方案概述与设计原则</a></li>
+    <li><a href="#arch">总体架构（框架图）</a></li>
+    <li><a href="#slot">槽组件（lv_slot）设计</a></li>
+    <li><a href="#match">订阅与匹配机制（信号 + 对象）</a></li>
+    <li><a href="#page">页面模块（Page）与槽的集成</a></li>
+    <li><a href="#page-manager">页面管理器（PageManager）</a></li>
+    <li><a href="#swipe">滑动容器抽象层 + TileView 实现</a></li>
+    <li><a href="#model">数据模型（应用层，不属于 lvframe）</a></li>
+    <li><a href="#box86">box86 双槽消息流</a></li>
+    <li><a href="#thread-model">线程模式（线程间关系图）</a></li>
+    <li><a href="#inter-thread">线程间数据交互（时序）</a></li>
+    <li><a href="#config">配置与限制</a></li>
+    <li><a href="#errors">错误处理与调试</a></li>
+    <li><a href="#extension">扩展指南</a></li>
+    <li><a href="#known">已知限制</a></li>
+    <li><a href="#api">接口汇总</a></li>
+    <li><a href="#split">lvframe 拆分与代码迁移清单</a></li>
+    <li><a href="#summary">总结</a></li>
+  </ol>
+</nav>
+
+<h2 id="overview"><span class="no">1</span>方案概述与设计原则</h2>
+<p>本框架为基于 LVGL 的嵌入式设备提供完整的 UI 管理方案。v2 相对 v1 的核心变化：</p>
+<div class="grid g3">
+  <div class="fcard sl"><b>事件总线 → 消息槽（Slot）</b><br>任何线程可向任一槽发送消息（<strong>signal + object + payload</strong>）；<strong>每个槽只有一个消费者线程</strong>。QT 信号-槽风格，取代 event_bus / app_bus / adapter 三套机制。</div>
+  <div class="fcard dv"><b>数据模型完全移出框架</b><br>lvframe <strong>不定义、不管理、不存储任何数据模型</strong>；<code>object</code> 仅是<strong>不透明路由键</strong>（只做指针比较），模型/虚拟抽象全部归应用层。</div>
+  <div class="fcard pg"><b>信号式订阅，对象匹配上移</b><br>订阅按<strong>信号 + 对象</strong>维度（对象可空 = 全收）；<strong>对象匹配由槽在分发时完成</strong>，回调不再做实例过滤，payload 语义由回调自决。</div>
+</div>
+<h3>1.1 设计原则</h3>
+<ul>
+  <li><strong>能力边界</strong>：lvframe 只提供两类能力——<strong>消息槽</strong>与<strong>页面生命周期栈（含左右滑动页管理）</strong>。数据模型（设备或用户自定义结构体）的定义、存储、使用方式，以及"何时添加/删除页面"的决策逻辑，全部归应用层。</li>
+  <li><strong>消息语义由应用定义</strong>：框架只提供骨架（signal + object + payload + 便捷参数），不做任何业务假设。</li>
+  <li><strong>槽按"信号 + 对象"分发</strong>：队列 + 信号匹配 + 对象匹配（NULL 双向通配）+ 快照安全；object 匹配由槽完成，payload 路由由回调自决。</li>
+  <li><strong>payload 所有权一次性移交</strong>：调用方在 send 后不再触碰 payload；槽在分发结束后负责释放（可选析构，默认 lv_free）；object 永不释放。</li>
+  <li><strong>object 不透明</strong>：槽对 object 只做指针 <code>==</code> 比较，不读写其内容、不释放、不假设它是"数据模型"；其语义与生命周期完全由应用层决定。</li>
+  <li><strong>零闲置内存</strong>：消息队列与订阅表均为动态链表节点，完全无上限，不预分配容量。</li>
+  <li><strong>跨线程只有消息槽一条通道</strong>：UI 点击经槽发往业务线程，业务变更经槽通知 UI；数据读取走仓库快照（互斥锁内拷贝）。</li>
+</ul>
+<p class="note">本文档为 v2 设计（动态节点、信号 + 对象匹配、payload 由槽释放）。方案未定，审核通过前禁止修改代码。</p>
+
+<h2 id="arch"><span class="no">2</span>总体架构（框架图）</h2>
+
+<figure>
+<svg class="fig" viewBox="0 0 900 590" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="v2-a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+    <marker id="v2-a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#0d9488"/>
+    </marker>
+  </defs>
+
+  <!-- lvframe 边界 -->
+  <rect x="20" y="20" width="860" height="280" rx="14" fill="#f1f5f9" stroke="#334155" stroke-width="1.5" stroke-dasharray="8 4"/>
+  <text x="40" y="48" font-size="14" font-weight="bold" fill="#334155">UI 线程 —— LVGL 主循环（lvframe 边界内）</text>
+
+  <!-- PageManager -->
+  <rect x="45" y="70" width="235" height="130" rx="10" fill="#ffffff" stroke="#4f46e5" stroke-width="2"/>
+  <text x="162" y="94" font-size="13" font-weight="bold" fill="#4f46e5" text-anchor="middle">PageManager 页面管理器</text>
+  <rect x="60" y="112" width="5" height="5" rx="1" fill="#4f46e5"/><text x="74" y="118" font-size="11.5" fill="#475569">注册表 ≤20：名称 → 工厂</text>
+  <rect x="60" y="132" width="5" height="5" rx="1" fill="#4f46e5"/><text x="74" y="138" font-size="11.5" fill="#475569">导航栈 ≤20 · LRU 缓存默认 3</text>
+  <rect x="60" y="172" width="5" height="5" rx="1" fill="#4f46e5"/><text x="74" y="178" font-size="11.5" fill="#475569">错误码 PageManagerError</text>
+
+  <!-- Page -->
+  <rect x="305" y="70" width="190" height="130" rx="10" fill="#ffffff" stroke="#1a73e8" stroke-width="2"/>
+  <text x="400" y="94" font-size="13" font-weight="bold" fill="#1a73e8" text-anchor="middle">Page 页面对象</text>
+  <rect x="320" y="112" width="5" height="5" rx="1" fill="#1a73e8"/><text x="334" y="118" font-size="11.5" fill="#475569">root / state / user_data</text>
+  <rect x="320" y="152" width="5" height="5" rx="1" fill="#1a73e8"/><text x="334" y="158" font-size="11.5" fill="#475569">slot：绑定槽（自动退订）</text>
+  <rect x="320" y="172" width="5" height="5" rx="1" fill="#1a73e8"/><text x="334" y="178" font-size="11.5" fill="#475569">on_msg 回调 · lifecycle</text>
+
+  <!-- SwipeContainer + tileview -->
+  <rect x="520" y="70" width="100" height="130" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="570" y="90" font-size="11.5" font-weight="bold" fill="#7c3aed" text-anchor="middle">Swipe</text>
+  <text x="570" y="105" font-size="11.5" font-weight="bold" fill="#7c3aed" text-anchor="middle">Container</text>
+  <rect x="531" y="120" width="5" height="5" rx="1" fill="#7c3aed"/><text x="542" y="126" font-size="10.5" fill="#475569">ops 函数表</text>
+  <rect x="531" y="140" width="5" height="5" rx="1" fill="#7c3aed"/><text x="542" y="146" font-size="10.5" fill="#475569">注册 ≤5 实现</text>
+  <rect x="531" y="160" width="5" height="5" rx="1" fill="#7c3aed"/><text x="542" y="166" font-size="10.5" fill="#475569">user_data→ops</text>
+  <rect x="520" y="215" width="100" height="55" rx="8" fill="#faf5ff" stroke="#7c3aed" stroke-dasharray="4 3"/>
+  <text x="570" y="237" font-size="10.5" font-weight="bold" fill="#7c3aed" text-anchor="middle">实现层</text>
+  <text x="570" y="254" font-size="10.5" fill="#6d28d9" text-anchor="middle">tileview_impl</text>
+  <line x1="570" y1="200" x2="570" y2="215" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#v2-a1)"/>
+
+  <!-- g_ui_slot -->
+  <rect x="645" y="70" width="215" height="130" rx="10" fill="#f0fdfa" stroke="#0d9488" stroke-width="2.5"/>
+  <text x="752" y="94" font-size="13" font-weight="bold" fill="#0d9488" text-anchor="middle">槽：g_ui_slot（应用实例）</text>
+  <rect x="660" y="112" width="5" height="5" rx="1" fill="#0d9488"/><text x="674" y="118" font-size="11.5" fill="#475569">消息队列：动态链表节点（无上限）</text>
+  <rect x="660" y="132" width="5" height="5" rx="1" fill="#0d9488"/><text x="674" y="138" font-size="11.5" fill="#475569">订阅者链表：signal + object + handler</text>
+  <rect x="660" y="152" width="5" height="5" rx="1" fill="#0d9488"/><text x="674" y="158" font-size="11.5" fill="#475569">唯一消费者：UI 线程 50ms 定时器</text>
+  <rect x="660" y="172" width="5" height="5" rx="1" fill="#0d9488"/><text x="674" y="178" font-size="11.5" fill="#475569">按 signal + object 分发</text>
+
+  <!-- 应用页面 -->
+  <rect x="45" y="215" width="240" height="55" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="1.5"/>
+  <text x="165" y="238" font-size="11" font-weight="bold" fill="#ea580c" text-anchor="middle">应用层页面示例（box86）</text>
+  <text x="165" y="256" font-size="10.5" fill="#9a3412" text-anchor="middle">Home / 设备页（按类型分发）/ 设置面板 / 屏保</text>
+
+  <!-- 模块间箭头 -->
+  <line x1="280" y1="135" x2="305" y2="135" stroke="#64748b" stroke-width="1.5" marker-start="url(#v2-a1)" marker-end="url(#v2-a1)"/>
+  <text x="292" y="126" font-size="10" fill="#64748b" text-anchor="middle">open/back</text>
+  <path d="M 400 200 C 400 240 752 240 752 200" fill="none" stroke="#0d9488" stroke-width="1.5" marker-end="url(#v2-a2)"/>
+  <text x="576" y="232" font-size="10.5" fill="#0d9488" text-anchor="middle">page_bind_slot(page, slot, signal, object) —— 按信号 + 对象订阅</text>
+  <path d="M 495 200 C 495 240 570 240 570 270" fill="none" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#v2-a1)"/>
+  <text x="538" y="252" font-size="10" fill="#7c3aed" text-anchor="middle">创建/增删页</text>
+
+  <!-- DEV 线程容器 -->
+  <rect x="20" y="330" width="860" height="240" rx="14" fill="#f8fafc" stroke="#334155" stroke-width="1.5" stroke-dasharray="8 4"/>
+  <text x="40" y="358" font-size="14" font-weight="bold" fill="#334155">DEV 线程（业务线程）—— 数据模型唯一写方</text>
+
+  <!-- g_dev_slot -->
+  <rect x="45" y="380" width="230" height="130" rx="10" fill="#f0fdfa" stroke="#0d9488" stroke-width="2.5"/>
+  <text x="160" y="404" font-size="13" font-weight="bold" fill="#0d9488" text-anchor="middle">槽：g_dev_slot（应用实例）</text>
+  <rect x="60" y="422" width="5" height="5" rx="1" fill="#0d9488"/><text x="74" y="428" font-size="11.5" fill="#475569">消息队列：动态链表节点（无上限）</text>
+  <rect x="60" y="442" width="5" height="5" rx="1" fill="#0d9488"/><text x="74" y="448" font-size="11.5" fill="#475569">唯一消费者：DEV 线程</text>
+  <rect x="60" y="462" width="5" height="5" rx="1" fill="#0d9488"/><text x="74" y="468" font-size="11.5" fill="#475569">slot_wait() 阻塞唤醒 + process</text>
+  <rect x="60" y="482" width="5" height="5" rx="1" fill="#0d9488"/><text x="74" y="488" font-size="11.5" fill="#475569">Shell 命令同线程直接处理</text>
+
+  <!-- 业务逻辑 -->
+  <rect x="300" y="380" width="240" height="130" rx="10" fill="#ffffff" stroke="#ea580c" stroke-width="2"/>
+  <text x="420" y="404" font-size="13" font-weight="bold" fill="#ea580c" text-anchor="middle">业务逻辑（business）</text>
+  <rect x="315" y="422" width="5" height="5" rx="1" fill="#ea580c"/><text x="329" y="428" font-size="11.5" fill="#475569">消费 g_dev_slot：SET_PROP 等</text>
+  <rect x="315" y="442" width="5" height="5" rx="1" fill="#ea580c"/><text x="329" y="448" font-size="11.5" fill="#475569">模型更新（唯一写方）</text>
+  <rect x="315" y="462" width="5" height="5" rx="1" fill="#ea580c"/><text x="329" y="468" font-size="11.5" fill="#475569">Shell 解析：add/del/move/set</text>
+  <rect x="315" y="482" width="5" height="5" rx="1" fill="#ea580c"/><text x="329" y="488" font-size="11.5" fill="#475569">按信号下发（LIGHT_ON/OFF 等）</text>
+
+  <!-- 通用模型层（应用层，不归 lvframe） -->
+  <rect x="565" y="380" width="295" height="130" rx="10" fill="#fff7ed" stroke="#ea580c" stroke-width="2" stroke-dasharray="6 3"/>
+  <text x="712" y="404" font-size="12.5" font-weight="bold" fill="#ea580c" text-anchor="middle">通用数据模型层（box86/models/）</text>
+  <text x="712" y="422" font-size="10.5" fill="#9a3412" text-anchor="middle">—— 应用层所有，与 lvframe 无关，与 UI 无关 ——</text>
+  <rect x="580" y="436" width="5" height="5" rx="1" fill="#ea580c"/><text x="594" y="442" font-size="11" fill="#475569">model_base_t 通用头（id/type/name/ref_count/valid）</text>
+  <rect x="580" y="456" width="5" height="5" rx="1" fill="#ea580c"/><text x="594" y="462" font-size="11" fill="#475569">model_store 仓库：models[]/order[]/mutex + 快照接口</text>
+  <rect x="580" y="476" width="5" height="5" rx="1" fill="#ea580c"/><text x="594" y="482" font-size="11" fill="#475569">模型：灯/色温灯/窗帘 + 虚拟模型（SYSTEM 系统设置…）</text>
+
+  <!-- 跨线程消息通道 -->
+  <line x1="160" y1="300" x2="160" y2="380" stroke="#0d9488" stroke-width="2.5" marker-end="url(#v2-a2)"/>
+  <text x="172" y="344" font-size="11" font-weight="bold" fill="#0d9488">命令下行</text>
+  <text x="172" y="360" font-size="10.5" fill="#0f766e">UI → lv_slot_send(g_dev_slot)</text>
+  <line x1="710" y1="200" x2="710" y2="330" stroke="#0d9488" stroke-width="2.5" marker-end="url(#v2-a2)"/>
+  <text x="722" y="270" font-size="11" font-weight="bold" fill="#0d9488">事件上行</text>
+  <text x="722" y="286" font-size="10.5" fill="#0f766e">DEV → lv_slot_send(g_ui_slot)</text>
+
+  <text x="40" y="548" font-size="11" fill="#64748b">lvframe 拆分后边界：仅 Page / PageManager / SwipeContainer / Slot 四个组件；数据模型层、消息枚举、槽实例全部属于应用层（box86）。</text>
+</svg>
+<figcaption>图 1：总体架构 —— 跨线程仅两条消息槽通道，模型层完全在框架之外</figcaption>
+</figure>
+
+<h2 id="slot"><span class="no">3</span>槽组件（lv_slot）设计</h2>
+
+<h3>3.1 概念：与 QT 信号-槽的对应</h3>
+<table>
+  <tr><th>QT 概念</th><th>本设计</th></tr>
+  <tr><td>Signal（信号）</td><td><code>lv_slot_send()</code>：任意线程发送消息（signal + object + payload）到槽</td></tr>
+  <tr><td>Slot（槽）</td><td>一个 <code>lv_slot_t</code>：消息队列 + 订阅者链表 + 唯一消费者线程</td></tr>
+  <tr><td>connect（连接）</td><td><code>lv_slot_subscribe(slot, signal, object, handler, ctx)</code>：按信号 + 对象订阅</td></tr>
+  <tr><td>Receiver 对象</td><td><code>Page</code>（page_bind_slot）或任意应用对象（ctx）</td></tr>
+  <tr><td>匹配/过滤</td><td><strong>信号 + 对象由槽匹配</strong>（object 为 NULL 时双向通配）；payload 语义由回调自决</td></tr>
+</table>
+
+<h3>3.2 设计目标</h3>
+<ul>
+  <li><strong>任意线程可发送</strong>：任何线程向任一槽发送消息，非阻塞、互斥保护。</li>
+  <li><strong>槽归属消费者线程</strong>：每个槽只属于一个消费者线程（g_ui_slot 属 UI 线程、由 LVGL 定时器消费；g_dev_slot 属 DEV 线程、由业务线程消费）；<strong>其他线程只向该槽发送消息</strong>。</li>
+  <li><strong>消息语义应用化</strong>：signal / object / payload 语义由应用定义，框架不做业务假设。</li>
+  <li><strong>信号式订阅</strong>：订阅按信号（signal）+ 对象（object）维度；一对象可细分多信号。</li>
+  <li><strong>对象匹配上移</strong>：槽在分发时按 signal + object 过滤（NULL 双向通配），回调不再做实例过滤。</li>
+  <li><strong>payload 由槽释放</strong>：动态申请负载在分发结束后由槽统一释放（可选析构）；object 永不释放。</li>
+  <li><strong>零闲置内存</strong>：消息队列与订阅表均为动态链表节点，完全无上限。</li>
+</ul>
+
+<h3>3.3 数据结构（动态链表，零闲置内存）</h3>
+<pre>
+#define LV_SLOT_NAME_MAX 24
+
+/* 消息骨架：signal / object / payload 语义完全由应用定义 */
+typedef struct {
+    int   signal;                /* 信号（signal/event）：应用枚举 */
+    void* object;                /* 对象：不透明指针（仅 == 比较）；NULL = 广播；槽永不释放、不读写内容 */
+    void* payload;               /* 负载，槽不关心内容；动态申请由槽负责释放；NULL = 无负载 */
+    void  (*payload_dtor)(void*); /* payload 析构（payload != NULL 时于分发结束后调用）：
+                                   *   NULL        → 槽用 lv_free 释放；
+                                   *   自定义函数  → 释放嵌套指针等；
+                                   *   空函数 no-op → 不需要释放（借用/静态 payload）。*/
+    int   arg0, arg1;            /* 便捷整型参数（box86: value / new_pos）*/
+    double argf;                 /* 便捷浮点参数（如空调温度，0.1 精度）*/
+    char  field[24];             /* 便捷字符串参数（box86: 属性名）*/
+} lv_slot_msg_t;
+
+typedef void (*lv_slot_handler_t)(void* ctx, const lv_slot_msg_t* msg);
+
+/* 消息节点：发送时动态申请（lv_malloc），分发后连同 payload 一起释放 */
+typedef struct lv_slot_node {
+    lv_slot_msg_t        msg;
+    struct lv_slot_node* next;
+} lv_slot_node_t;
+
+/* 订阅者节点：订阅唯一身份 = (signal, object, handler, ctx) 四元组，动态申请，无数量上限 */
+typedef struct lv_slot_sub {
+    int                 signal;  /* 订阅的信号类型 */
+    void*               object;  /* 订阅的对象；NULL = 该信号全接受（不管发送方是否指定对象）*/
+    lv_slot_handler_t   handler; /* 订阅回调；退订时作为身份一部分（函数指针 == 比较）*/
+    void*               ctx;     /* 订阅者对象（Page* 或任意）*/
+    struct lv_slot_sub* next;
+} lv_slot_sub_t;
+
+typedef struct {
+    char             name[LV_SLOT_NAME_MAX];  /* 槽名："g_ui_slot" / "g_dev_slot" */
+    lv_slot_node_t*  head;                    /* 队头（消费者出队）*/
+    lv_slot_node_t*  tail;                    /* 队尾（发送方追加）*/
+    int              count;                   /* 待处理消息数（诊断）*/
+    lv_mutex_t       mutex;                   /* 保护队列与订阅链表 */
+    lv_thread_sync_t sem;                     /* 入队 signal，唤醒阻塞消费者 */
+    lv_slot_sub_t*   subs;                    /* 订阅者链表 */
+    int              sub_count;
+    int              dropped;                 /* 分配失败丢弃计数（诊断）*/
+} lv_slot_t;
+</pre>
+
+<h3>3.4 API 接口</h3>
+<table>
+  <tr><th>函数</th><th>参数</th><th>返回值</th><th>描述</th></tr>
+  <tr><td><code>lv_slot_init</code></td><td><code>lv_slot_t* s, const char* name</code></td><td><code>void</code></td><td>清零并创建互斥锁与信号量</td></tr>
+  <tr><td><code>lv_slot_deinit</code></td><td><code>lv_slot_t* s</code></td><td><code>void</code></td><td>释放全部残留消息（含 payload）/订阅节点，销毁锁与信号量</td></tr>
+  <tr><td><code>lv_slot_send</code></td><td><code>s, const lv_slot_msg_t* msg</code></td><td><code>int</code></td><td>任意线程：lv_malloc 节点 → 加锁尾插 → 解锁+signal → 0；分配失败 → 释放 payload + dropped++ 返回 -1；非阻塞；<strong>payload 所有权一次性移交</strong></td></tr>
+  <tr><td><code>lv_slot_subscribe</code></td><td><code>s, int signal, void* object, lv_slot_handler_t handler, void* ctx</code></td><td><code>int</code></td><td>按信号 + 对象订阅（object=NULL 全接受）；重复订阅去重；无数量上限</td></tr>
+  <tr><td><code>lv_slot_unsubscribe_all</code></td><td><code>s, void* ctx</code></td><td><code>int</code></td><td>移除该 ctx 的全部订阅（page_destroy 自动调用）</td></tr>
+  <tr><td><code>lv_slot_unsubscribe_one</code></td><td><code>s, int signal, void* object, lv_slot_handler_t handler, void* ctx</code></td><td><code>int</code></td><td>精确退订：signal / object / handler / ctx 四元组全等才删除（对齐 Qt disconnect）</td></tr>
+  <tr><td><code>lv_slot_process</code></td><td><code>lv_slot_t* s</code></td><td><code>void</code></td><td>消费者线程：循环出队 → 快照 → 按 signal + object 分发 → 释放 payload 与节点</td></tr>
+  <tr><td><code>lv_slot_wait</code></td><td><code>lv_slot_t* s</code></td><td><code>int</code></td><td>阻塞等待消息（基于 lv_thread_sync_t），供 DEV 线程</td></tr>
+</table>
+
+<h3>3.5 实现要点</h3>
+<ul>
+  <li><strong>发送流程</strong>（lv_slot_send）：<code>lv_malloc</code> 消息节点 → 加锁尾插链表 → 解锁 → <code>lv_thread_sync_signal</code> 唤醒阻塞消费者 → 返回。<strong>完全无上限</strong>，节点分配失败时<strong>释放 payload</strong>并 dropped++ 兜底。<strong>send 一旦调用，payload 所有权即移交槽</strong>，调用方不再触碰。</li>
+  <li><strong>分发流程</strong>（lv_slot_process，唯一消费者线程）：
+    <ol>
+      <li><code>while(1)</code> 循环出队直到队列为空（批量处理，避免延迟累积）；</li>
+      <li>对每条消息，锁内收集<strong>订阅者快照</strong>（动态数组，随节点释放）再解锁；</li>
+      <li>匹配规则：<code>sub-&gt;signal == msg-&gt;signal &amp;&amp; (sub-&gt;object == NULL || msg-&gt;object == NULL || sub-&gt;object == msg-&gt;object)</code> → 调用 <code>handler(ctx, msg)</code>；<strong>完整消息原样透传（object 已由槽过滤）</strong>；</li>
+      <li>所有订阅回调返回后，<strong>释放 payload</strong>（payload_dtor 非空则调用之、否则 lv_free；no-op 即不释放）并 <code>lv_free</code> 释放消息节点。</li>
+    </ol>
+  </li>
+  <li><strong>线程安全</strong>：队列与订阅链表共用一把互斥锁；快照机制保证回调内可安全订阅/退订、可再 send（重入无碍），无死锁。</li>
+  <li><strong>职责边界</strong>：槽 = 队列 + 按 signal + object 分发 + payload 生命周期管理；payload 语义解释与使用 = 订阅回调；object 生命周期 = 应用层（槽不释放、不假设）。</li>
+</ul>
+
+<figure>
+<svg class="fig" viewBox="0 0 900 400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="v2-s1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <rect x="40" y="115" width="190" height="120" rx="10" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+  <text x="135" y="140" font-size="12.5" font-weight="bold" fill="#ea580c" text-anchor="middle">发送方（任意线程）</text>
+  <text x="135" y="165" font-size="11" fill="#475569" text-anchor="middle">构造 lv_slot_msg_t</text>
+  <text x="135" y="185" font-size="11" fill="#475569" text-anchor="middle">lv_slot_send(slot, msg)</text>
+  <text x="135" y="205" font-size="10.5" fill="#9a3412" text-anchor="middle">lv_malloc 节点 → 尾插</text>
+  <text x="135" y="222" font-size="10.5" fill="#9a3412" text-anchor="middle">非阻塞 · 分配失败丢弃</text>
+
+  <rect x="285" y="115" width="190" height="120" rx="10" fill="#eef2ff" stroke="#4f46e5" stroke-width="2"/>
+  <text x="380" y="140" font-size="12.5" font-weight="bold" fill="#4f46e5" text-anchor="middle">动态消息队列（链表）</text>
+  <text x="380" y="165" font-size="11" fill="#475569" text-anchor="middle">节点按需申请 · 完全无上限</text>
+  <text x="380" y="185" font-size="11" fill="#475569" text-anchor="middle">分发后释放 · 零闲置内存</text>
+  <text x="380" y="205" font-size="10.5" fill="#4338ca" text-anchor="middle">lv_mutex_t 互斥保护</text>
+
+  <rect x="530" y="115" width="190" height="120" rx="10" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+  <text x="625" y="140" font-size="12.5" font-weight="bold" fill="#0d9488" text-anchor="middle">消费者（唯一线程）</text>
+  <text x="625" y="165" font-size="11" fill="#475569" text-anchor="middle">DEV: slot_wait() 阻塞唤醒</text>
+  <text x="625" y="185" font-size="11" fill="#475569" text-anchor="middle">UI: 50ms LVGL 定时器</text>
+  <text x="625" y="205" font-size="10.5" fill="#0f766e" text-anchor="middle">lv_slot_process 批量出队</text>
+
+  <rect x="760" y="115" width="110" height="120" rx="10" fill="#eef2f7" stroke="#64748b" stroke-width="2"/>
+  <text x="815" y="140" font-size="11.5" font-weight="bold" fill="#334155" text-anchor="middle">订阅者链表</text>
+  <text x="815" y="165" font-size="10.5" fill="#475569" text-anchor="middle">signal + object</text>
+  <text x="815" y="183" font-size="10.5" fill="#475569" text-anchor="middle">handler + ctx</text>
+  <text x="815" y="201" font-size="10.5" fill="#475569" text-anchor="middle">无数量上限</text>
+
+  <line x1="230" y1="175" x2="285" y2="175" stroke="#64748b" stroke-width="2" marker-end="url(#v2-s1)"/>
+  <text x="257" y="165" font-size="10" fill="#64748b" text-anchor="middle">① 入队</text>
+  <line x1="475" y1="175" x2="530" y2="175" stroke="#64748b" stroke-width="2" marker-end="url(#v2-s1)"/>
+  <text x="502" y="165" font-size="10" fill="#64748b" text-anchor="middle">② 出队</text>
+  <line x1="720" y1="175" x2="760" y2="175" stroke="#64748b" stroke-width="2" marker-end="url(#v2-s1)"/>
+  <text x="740" y="165" font-size="10" fill="#64748b" text-anchor="middle">③ 快照</text>
+
+  <line x1="625" y1="235" x2="625" y2="268" stroke="#64748b" stroke-width="1.5"/>
+  <line x1="200" y1="268" x2="700" y2="268" stroke="#64748b" stroke-width="1.5"/>
+  <text x="450" y="260" font-size="10.5" fill="#334155" text-anchor="middle" font-weight="bold">④ 分发：signal 相等 且 object 匹配（NULL 双向通配）→ 完整消息传给回调</text>
+  <line x1="200" y1="268" x2="200" y2="298" stroke="#64748b" stroke-width="2" marker-end="url(#v2-s1)"/>
+  <line x1="450" y1="268" x2="450" y2="298" stroke="#64748b" stroke-width="2" marker-end="url(#v2-s1)"/>
+  <line x1="700" y1="268" x2="700" y2="298" stroke="#64748b" stroke-width="2" marker-end="url(#v2-s1)"/>
+
+  <rect x="125" y="298" width="150" height="44" rx="8" fill="#eef4fd" stroke="#1a73e8"/>
+  <text x="200" y="315" font-size="11" font-weight="bold" fill="#1a73e8" text-anchor="middle">灯2页（订阅 LIGHT_ON/OFF）</text>
+  <text x="200" y="332" font-size="10.5" fill="#0f766e" text-anchor="middle">✓ object 由槽匹配命中</text>
+  <rect x="375" y="298" width="150" height="44" rx="8" fill="#eef4fd" stroke="#1a73e8"/>
+  <text x="450" y="315" font-size="11" font-weight="bold" fill="#1a73e8" text-anchor="middle">home（订阅信号，object=NULL）</text>
+  <text x="450" y="332" font-size="10.5" fill="#0f766e" text-anchor="middle">✓ 全信号接收</text>
+  <rect x="625" y="298" width="150" height="44" rx="8" fill="#eef4fd" stroke="#1a73e8"/>
+  <text x="700" y="315" font-size="11" font-weight="bold" fill="#1a73e8" text-anchor="middle">设置面板（订阅 REFRESH_SYS）</text>
+  <text x="700" y="332" font-size="10.5" fill="#dc2626" text-anchor="middle">✗ 类型不符不投递</text>
+
+  <text x="40" y="372" font-size="11" fill="#64748b">回调内可安全订阅/退订、再发送（分发使用快照）；object 匹配由槽完成，payload 语义由回调自决。</text>
+</svg>
+<figcaption>图 2：槽内部数据流 —— 任意线程发送，唯一消费者线程按信号类型分发</figcaption>
+</figure>
+
+<h3>3.6 消费模式</h3>
+<table>
+  <tr><th>模式</th><th>适用</th><th>说明</th></tr>
+  <tr><td><code>slot_wait()</code> + <code>slot_process()</code></td><td>DEV 线程（g_dev_slot）</td><td>可安全阻塞，消息响应即时；Shell 轮询与槽消费在同一循环</td></tr>
+  <tr><td>LVGL 定时器回调 <code>slot_process()</code></td><td>UI 线程（g_ui_slot）</td><td>50ms 周期；UI 线程运行 lv_timer_handler 不可阻塞</td></tr>
+</table>
+<p class="note">一个槽只允许一个消费者线程（设计约束，由应用指定）。槽<strong>以消费者线程命名并归属之</strong>：g_ui_slot 是 UI 线程的槽、g_dev_slot 是 DEV 线程的槽，其他线程只向其发送消息；槽机制本身不硬绑定线程，消费方式（wait+process 或定时器）由应用选择。</p>
+
+<h3>3.7 payload 所有权契约与退订语义</h3>
+<p><strong>payload 所有权</strong>：调用方构造 <code>lv_slot_msg_t</code> 并调用 <code>lv_slot_send()</code> 后即视为一次性移交所有权，此后调用方不得再读写或释放 payload。槽在以下路径<strong>保证释放 payload 且仅释放一次</strong>：</p>
+<ol>
+  <li>消息节点分配失败 → 立即释放 payload（dropped++）；</li>
+  <li>正常入队 → 分发结束后（所有订阅回调返回）释放 payload；</li>
+  <li>槽 deinit 时残留队列 → 逐节点释放 payload。</li>
+</ol>
+<p>释放方式：<code>payload_dtor</code> 非空则调用 <code>payload_dtor(payload)</code>，否则 <code>lv_free(payload)</code>。<strong>若 payload 不需要释放（借用/静态数据），传一个空函数（no-op）作为 payload_dtor</strong>，槽即不释放；切勿对借用指针留 NULL（会触发 lv_free）。多个订阅者共享同一份只读 payload，回调内如需保留数据必须自行拷贝。<code>object</code> 为不透明指针，<strong>槽永不释放、不读写</strong>，其生命周期由应用层（如 box86 的模型仓库 + 两段式删除）保证。</p>
+<p><strong>退订语义（对齐 Qt disconnect）</strong>：订阅节点的唯一身份为四元组 <code>(signal, object, handler, ctx)</code>（handler 用函数指针 <code>==</code> 比较）。同一信号下可有多个对象（含 NULL）以同一 ctx 订阅，因此退订必须携带足够字段才能唯一定位：</p>
+<ul>
+  <li><code>lv_slot_unsubscribe_all(slot, ctx)</code>：移除该 ctx 的全部订阅（不分 signal/object/handler），用于 page_destroy；</li>
+  <li><code>lv_slot_unsubscribe_one(slot, signal, object, handler, ctx)</code>：<strong>四元组全等</strong>才删除，最多命中一个节点（因订阅时按四元组去重）；命中移除返回 0，未命中返回 -1；</li>
+  <li><code>page_unbind_slot(page, slot, signal, object)</code>：Page 层封装，内部 handler 固定为 <code>page_slot_dispatch</code>，应用层无需关心 handler。</li>
+</ul>
+
+<h2 id="match"><span class="no">4</span>订阅与匹配机制（信号 + 对象）</h2>
+<p>订阅指明<strong>信号（signal）</strong>与<strong>对象（object）</strong>两个维度。信号匹配无歧义（<code>sub-&gt;signal == msg-&gt;signal</code>）；对象匹配采用<strong>语义 B：NULL 双向通配</strong>——任一侧 object 为 NULL 都命中，用于表达"广播"与"全收"。匹配由<strong>槽在分发时完成</strong>，回调不再做实例过滤。</p>
+<p>对象匹配真值表（<code>X / Y</code> 为具体对象指针）：</p>
+<table>
+  <tr><th>订阅 object</th><th>消息 object</th><th>命中</th><th>说明</th></tr>
+  <tr><td>NULL（全收）</td><td>NULL（广播）</td><td>✅</td><td>全收订阅者收到广播</td></tr>
+  <tr><td>NULL（全收）</td><td>X</td><td>✅</td><td>全收订阅者收到任意对象消息</td></tr>
+  <tr><td>X</td><td>NULL（广播）</td><td>✅</td><td>广播命中精确订阅者（NULL 双向通配）</td></tr>
+  <tr><td>X</td><td>X</td><td>✅</td><td>对象精确匹配</td></tr>
+  <tr><td>X</td><td>Y</td><td>❌</td><td>对象不匹配，不投递</td></tr>
+</table>
+<p>匹配伪代码：</p>
+<pre>
+sig_match = (sub-&gt;signal == msg-&gt;signal);
+obj_match = (sub-&gt;object == NULL) || (msg-&gt;object == NULL) || (sub-&gt;object == msg-&gt;object);
+if (sig_match &amp;&amp; obj_match) handler(ctx, msg);   /* 完整消息原样透传 */
+</pre>
+<p>三种典型场景：</p>
+<ul>
+  <li><strong>多实例精确匹配</strong>：3 个灯页分别以各自模型为 object 订阅 LIGHT_ON/OFF；槽只把消息投给 object 命中的那一页。</li>
+  <li><strong>一模型多 UI</strong>：tile 页与信息浮层用同一 object 订阅同一信号，同一条信号同时命中两处。</li>
+  <li><strong>信号级广播</strong>：发送 <code>object=NULL</code> 的消息（如"全屋断电"）；精确订阅者会因 NULL 双向通配而命中，<strong>回调内如需区分广播可判断 <code>msg-&gt;object == NULL</code></strong>。</li>
+</ul>
+<p class="note">语义 B 下精确订阅者会被广播命中；若希望"广播只命中心广播订阅者"，应改用语义 A（仅 <code>sub-&gt;object == NULL</code> 命中广播）。本方案选定 B。</p>
+
+<figure>
+<svg class="fig" viewBox="0 0 900 430" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="v2-m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <!-- 场景1：信号 + 实例匹配（槽按 object 分发） -->
+  <rect x="25" y="30" width="270" height="360" rx="12" fill="#f8fafc" stroke="#94a3b8"/>
+  <text x="160" y="56" font-size="13" font-weight="bold" fill="#334155" text-anchor="middle">场景 A · 多实例精确匹配</text>
+  <text x="160" y="74" font-size="10.5" fill="#64748b" text-anchor="middle">3 个灯实例 → 3 个页面</text>
+  <rect x="45" y="92" width="230" height="52" rx="8" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+  <text x="160" y="112" font-size="11" font-weight="bold" fill="#0d9488" text-anchor="middle">消息：MSG_DEV_LIGHT_ON</text>
+  <text x="160" y="130" font-size="10.5" fill="#475569" text-anchor="middle">object = 灯2模型指针</text>
+  <line x1="160" y1="144" x2="160" y2="168" stroke="#64748b" stroke-width="1.5" marker-end="url(#v2-m1)"/>
+  <rect x="45" y="168" width="230" height="40" rx="8" fill="#fff" stroke="#e3e6ea"/>
+  <text x="160" y="192" font-size="11" fill="#475569" text-anchor="middle">灯1订阅：object 不匹配 ✗</text>
+  <rect x="45" y="216" width="230" height="40" rx="8" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="160" y="240" font-size="11" font-weight="bold" fill="#15803d" text-anchor="middle">灯2订阅：object 匹配 ✓</text>
+  <rect x="45" y="264" width="230" height="40" rx="8" fill="#fff" stroke="#e3e6ea"/>
+  <text x="160" y="288" font-size="11" fill="#475569" text-anchor="middle">灯3订阅：object 不匹配 ✗</text>
+  <text x="160" y="340" font-size="10.5" fill="#64748b" text-anchor="middle">槽内比较 sub-&gt;object == msg-&gt;object</text>
+
+  <!-- 场景2：一模型多 UI -->
+  <rect x="315" y="30" width="270" height="360" rx="12" fill="#f8fafc" stroke="#94a3b8"/>
+  <text x="450" y="56" font-size="13" font-weight="bold" fill="#334155" text-anchor="middle">场景 B · 一模型多 UI</text>
+  <text x="450" y="74" font-size="10.5" fill="#64748b" text-anchor="middle">1 个灯模型 → 2 种 UI 形态</text>
+  <rect x="335" y="92" width="230" height="52" rx="8" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+  <text x="450" y="112" font-size="11" font-weight="bold" fill="#0d9488" text-anchor="middle">消息：MSG_DEV_LIGHT_ON</text>
+  <text x="450" y="130" font-size="10.5" fill="#475569" text-anchor="middle">object = 灯2模型指针</text>
+  <line x1="450" y1="144" x2="450" y2="168" stroke="#64748b" stroke-width="1.5" marker-end="url(#v2-m1)"/>
+  <rect x="335" y="168" width="230" height="40" rx="8" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="450" y="192" font-size="11" font-weight="bold" fill="#15803d" text-anchor="middle">灯2 tile 页订阅：object=灯2 ✓</text>
+  <rect x="335" y="216" width="230" height="40" rx="8" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="450" y="240" font-size="11" font-weight="bold" fill="#15803d" text-anchor="middle">灯2 信息浮层订阅：object=灯2 ✓</text>
+  <rect x="335" y="264" width="230" height="40" rx="8" fill="#fff" stroke="#e3e6ea"/>
+  <text x="450" y="288" font-size="11" fill="#475569" text-anchor="middle">灯1订阅：object 不匹配 ✗</text>
+  <text x="450" y="340" font-size="10.5" fill="#64748b" text-anchor="middle">同一信号 + 同一 object，多个订阅各自命中</text>
+
+  <!-- 场景3：信号广播 -->
+  <rect x="605" y="30" width="270" height="360" rx="12" fill="#f8fafc" stroke="#94a3b8"/>
+  <text x="740" y="56" font-size="13" font-weight="bold" fill="#334155" text-anchor="middle">场景 C · 信号级广播</text>
+  <text x="740" y="74" font-size="10.5" fill="#64748b" text-anchor="middle">"全屋断电" → 所有灯响应</text>
+  <rect x="625" y="92" width="230" height="52" rx="8" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+  <text x="740" y="112" font-size="11" font-weight="bold" fill="#0d9488" text-anchor="middle">消息：MSG_DEV_ALL_LIGHTS_OFF</text>
+  <text x="740" y="130" font-size="10.5" fill="#475569" text-anchor="middle">object = NULL（广播）</text>
+  <line x1="740" y1="144" x2="740" y2="168" stroke="#64748b" stroke-width="1.5" marker-end="url(#v2-m1)"/>
+  <rect x="625" y="168" width="230" height="40" rx="8" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="740" y="192" font-size="11" font-weight="bold" fill="#15803d" text-anchor="middle">灯1/2/3 订阅（object=NULL 广播命中）✓✓✓</text>
+  <rect x="625" y="216" width="230" height="40" rx="8" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="740" y="240" font-size="11" font-weight="bold" fill="#15803d" text-anchor="middle">home（订阅该信号，object=NULL）✓</text>
+  <rect x="625" y="264" width="230" height="40" rx="8" fill="#fff" stroke="#e3e6ea"/>
+  <text x="740" y="288" font-size="11" fill="#475569" text-anchor="middle">窗帘页（未订阅该信号）✗</text>
+  <text x="740" y="340" font-size="10.5" fill="#64748b" text-anchor="middle">信号 + 对象维度均由槽分发</text>
+</svg>
+<figcaption>图 3：订阅与匹配三种模式 —— 槽按 signal + object 分发，NULL 双向通配</figcaption>
+</figure>
+
+<h2 id="page"><span class="no">5</span>页面模块（Page）与槽的集成</h2>
+
+<h3>5.1 页面状态枚举</h3>
+<pre>
+typedef enum {
+    PAGE_STATE_NONE = 0,
+    PAGE_STATE_CREATED, PAGE_STATE_STARTED, PAGE_STATE_RESUMED,
+    PAGE_STATE_PAUSED,  PAGE_STATE_STOPPED,  PAGE_STATE_DESTROYED
+} PageState;
+</pre>
+<p>状态驱动：PageManager 在 open/back 时按顺序调用 on_pause → on_stop（旧页）与 on_start → on_resume（新页）；缓存满时淘汰并销毁最旧页面。</p>
+
+<h3>5.2 生命周期回调（v2 改造：on_event → on_msg）</h3>
+<pre>
+typedef struct {
+    void (*on_create)(Page* page, void* params);
+    void (*on_start)(Page* page);
+    void (*on_resume)(Page* page);
+    void (*on_pause)(Page* page);
+    void (*on_stop)(Page* page);
+    void (*on_destroy)(Page* page);
+    void (*on_msg)(Page* page, const lv_slot_msg_t* msg);   /* 收到订阅信号 */
+} PageLifecycle;
+</pre>
+
+<h3>5.3 页面结构体（v2 改造）</h3>
+<pre>
+struct Page {
+    lv_obj_t*     root;         /* LVGL 根对象 */
+    PageState     state;        /* 当前状态 */
+    void*         user_data;    /* 应用层页面私有数据（含其绑定的对象等，由应用定义）*/
+    lv_slot_t*    slot;         /* 绑定槽（page_destroy 自动退订全部）*/
+    PageLifecycle lifecycle;
+};
+</pre>
+
+<h3>5.4 API 接口</h3>
+<table>
+  <tr><th>函数</th><th>描述</th></tr>
+  <tr><td><code>page_create</code></td><td>创建页面：分配内存、创建隐藏 root（清样式）、复制回调、置 CREATED、调 on_create</td></tr>
+  <tr><td><code>page_destroy</code></td><td>v2：<strong>先自动退订绑定槽（该页全部订阅）</strong>，再调 on_destroy、删 root、释放内存</td></tr>
+  <tr><td><code>page_bind_slot</code></td><td>v2 新增：按信号 + 对象订阅（<code>page_bind_slot(page, slot, signal, object)</code>），可多次调用；内部 handler 转发到 page 的 on_msg；记录 slot 供自动退订</td></tr>
+  <tr><td><code>page_unbind_slot</code></td><td>v2 新增：按 (signal, object) 单条退订（<code>page_unbind_slot(page, slot, signal, object)</code>），内部转 <code>lv_slot_unsubscribe_one(slot, signal, object, page_slot_dispatch, page)</code></td></tr>
+  <tr><td><code>page_set_user_data / page_get_user_data</code></td><td>页面私有数据存取（应用自行存放绑定对象等）</td></tr>
+  <tr><td><code>page_set_root_created_cb</code></td><td>全局 root 创建回调（注入全局字体等）</td></tr>
+</table>
+
+<h3>5.5 实现要点</h3>
+<ul>
+  <li><strong>创建流程</strong>：calloc → 创建 root（隐藏、清样式）→ 全局 root 回调 → 复制 lifecycle → CREATED → on_create。</li>
+  <li><strong>销毁流程</strong>：若 page-&gt;slot 非空则 <code>lv_slot_unsubscribe_all(slot, page)</code> → on_destroy → lv_obj_delete(root) → free。</li>
+  <li><strong>绑定流程</strong>（page_bind_slot）：校验参数 → <code>lv_slot_subscribe(slot, signal, object, page_slot_dispatch, page)</code>（内部 handler 调用 page-&gt;lifecycle.on_msg）→ 记录 page-&gt;slot。重复订阅同一 (signal, object) 时去重。</li>
+  <li><strong>退订流程</strong>：page_destroy 自动 <code>lv_slot_unsubscribe_all(slot, page)</code>；如需单条退订，应用调用 <code>page_unbind_slot(page, slot, signal, object)</code>（内部四元组 <code>(signal, object, page_slot_dispatch, page)</code> 全等匹配）。</li>
+  <li><strong>回调匹配约定</strong>：on_msg 收到的是已按 signal + object 过滤的消息，无需再做实例过滤，是否处理由页面自行决定。</li>
+</ul>
+<p>页面 on_msg 示例（object 已由槽过滤）：</p>
+<pre>
+static void device_page_on_msg(Page* page, const lv_slot_msg_t* msg)
+{
+    /* msg-&gt;object 已由槽匹配，无需再做实例过滤 */
+    switch (msg-&gt;signal) {
+    case MSG_DEV_LIGHT_ON:   light_refresh(page); break;
+    case MSG_DEV_LIGHT_OFF:  light_refresh(page); break;
+    }
+}
+</pre>
+<ul>
+  <li><strong>订阅时机</strong>：on_create 中调用 page_bind_slot（每个 (signal, object) 一次）；退订由 page_destroy 自动完成。</li>
+  <li><strong>非 Page 的 UI 对象</strong>（如设置面板）：使用原始 <code>lv_slot_subscribe(slot, signal, object, handler, ctx)</code>，销毁前手动 unsubscribe_all。</li>
+  <li><strong>读数据</strong>：由应用层自行完成（box86 走模型仓库快照，锁内拷贝）；lvframe 不参与数据读写。</li>
+</ul>
+
+<h2 id="page-manager"><span class="no">6</span>页面管理器（PageManager）</h2>
+<p>接口与行为保持 v1：注册表（≤20）、导航栈（≤20）、LRU 缓存（默认 3 / 上限 10）、错误码返回。删除 <code>page_manager_find_page_by_model</code>（模型相关能力，改由槽按 object 匹配 + 应用层管理完成）。</p>
+<pre>
+typedef enum {
+    PAGE_MANAGER_OK = 0,
+    PAGE_MANAGER_ERR_NOT_FOUND,    /* 页面未注册 */
+    PAGE_MANAGER_ERR_STACK_FULL,   /* 页面栈满 */
+    PAGE_MANAGER_ERR_NULL_POINTER, /* 空指针参数 */
+    PAGE_MANAGER_ERR_INTERNAL,     /* 创建失败 */
+} PageManagerError;
+</pre>
+<ul>
+  <li><strong>打开</strong>：旧页 on_pause + 隐藏 → 缓存查找或工厂创建 → on_start / on_resume + 显示 → 压栈（记录名称）→ 旧页 on_stop；失败时恢复当前页并返回错误码。</li>
+  <li><strong>返回</strong>：栈顶 on_pause → on_stop + 隐藏 → 上一页恢复 → 当前页按名称入缓存。</li>
+  <li><strong>缓存</strong>：数组 + 移位实现，命中即取出，满时淘汰最旧；缓存恢复的页面保留 UI 状态。</li>
+</ul>
+
+<h2 id="swipe"><span class="no">7</span>滑动容器抽象层 + TileView 实现</h2>
+<pre>
+typedef struct {
+    lv_obj_t* (*create)(lv_obj_t* parent);
+    lv_obj_t* (*add_page)(lv_obj_t* container, int index);
+    void      (*remove_page)(lv_obj_t* container, int index);
+    void      (*switch_to)(lv_obj_t* container, int index);
+    int       (*get_current)(lv_obj_t* container);
+    int       (*get_count)(lv_obj_t* container);
+} SwipeContainerOps;
+</pre>
+<ul>
+  <li>注册表（≤5），create 实现须把 ops 存入容器 user_data；</li>
+  <li>tileview_impl（v9.4）：tile 以 user_data=1 标记；删除后手动重排 <code>lv_pct(i*100)</code> 坐标；切换带动画（LV_ANIM_ON）。</li>
+</ul>
+<p class="note">SwipeContainer 只提供左右滑动页的<strong>原语</strong>（增/删/切换/查询）；<strong>何时增删页、每页放什么内容、如何与数据模型关联，由应用层决策</strong>（如 box86 在 ADD_MODEL / DEL_MODEL 时增删 tile）。</p>
+
+<h2 id="model"><span class="no">8</span>数据模型（应用层，不属于 lvframe）</h2>
+<p>lvframe <strong>不定义、不管理、不存储任何数据模型</strong>。数据模型（如 box86 的 <code>model_base_t</code> / <code>model_store</code> / 灯·色温灯·窗帘·SYSTEM 模型）完全属于应用层，详见 <a href="../../examples/box86/DESIGN.html">box86 工程设计文档 §5</a>。</p>
+<p>lvframe 与模型的唯一交互点是消息槽的 <code>object</code> 字段：它只是<strong>不透明指针</strong>，槽仅按指针 <code>==</code> 匹配、不读写内容、不释放；object 的语义（是设备还是虚拟抽象）与生命周期由应用层自行定义与保证。</p>
+
+<h2 id="box86"><span class="no">9</span>box86 双槽消息流</h2>
+<p class="note">本节是 lvframe 在 box86 上的<strong>应用层示例</strong>：消息枚举、订阅关系、页面增删时机均为 box86 的决策，lvframe 只提供消息槽与页面生命周期栈原语。</p>
+
+<h3>9.1 消息枚举（msg.h，信号化，应用定义，框架零限制）</h3>
+<pre>
+typedef enum {
+    /* → g_dev_slot（DEV 线程消费）*/
+    MSG_UI_SET_PROP,     /* object=模型, field=属性名, arg0=新值 */
+    MSG_UI_SET_SYSTEM,   /* object=SYSTEM 模型, field=字段, arg0=新值 */
+    MSG_UI_DEL_ACK,      /* object=模型（UI 已销毁页面，可释放）*/
+
+    /* → g_ui_slot（UI 线程消费）：设备信号（一模型多消息）*/
+    MSG_DEV_LIGHT_ON,        /* object=灯模型：灯打开 */
+    MSG_DEV_LIGHT_OFF,       /* object=灯模型：灯关闭 */
+    MSG_DEV_CCT_TEMP,        /* object=色温灯模型：色温变化 */
+    MSG_DEV_CURTAIN_POS,     /* object=窗帘模型：开合度变化 */
+    MSG_DEV_ALL_LIGHTS_OFF,  /* object=NULL：信号级广播示例 */
+
+    /* → g_ui_slot：生命周期 */
+    MSG_DEV_ADD_MODEL,   /* object=模型（创建页面并绑定）*/
+    MSG_DEV_DEL_MODEL,   /* object=模型（销毁绑定页面）*/
+    MSG_DEV_MOVE_MODEL,  /* object=模型, arg0=new_pos */
+    MSG_DEV_REFRESH_SYS, /* object=SYSTEM 模型 */
+} box86_msg_type_t;
+</pre>
+
+<h3>9.2 页面订阅模式（按信号 + 对象订阅，匹配由槽完成）</h3>
+<table>
+  <tr><th>订阅者</th><th>订阅 (signal, object)（page_bind_slot 多次调用）</th><th>object</th></tr>
+  <tr><td>Home 页</td><td><code>ADD_MODEL / DEL_MODEL / MOVE_MODEL / REFRESH_SYS</code></td><td>NULL（全收，处理页面生命周期）</td></tr>
+  <tr><td>灯页</td><td><code>MSG_DEV_LIGHT_ON</code>、<code>MSG_DEV_LIGHT_OFF</code></td><td>该灯模型指针</td></tr>
+  <tr><td>色温灯页</td><td><code>LIGHT_ON/OFF</code>、<code>MSG_DEV_CCT_TEMP</code></td><td>该色温灯模型指针</td></tr>
+  <tr><td>窗帘页</td><td><code>MSG_DEV_CURTAIN_POS</code></td><td>该窗帘模型指针</td></tr>
+  <tr><td>设置面板（非 Page）</td><td><code>MSG_DEV_REFRESH_SYS</code>（原始 lv_slot_subscribe）</td><td>NULL（直接刷新）</td></tr>
+  <tr><td>更多设置页</td><td><code>MSG_DEV_REFRESH_SYS</code></td><td>NULL（SYSTEM 模型快照刷新）</td></tr>
+</table>
+
+<h3>9.3 关键时序</h3>
+<div class="flow">
+  <div class="fstep"><span class="fn">点击</span>UI 控件回调：构造消息（object=模型）→ lv_slot_send(g_dev_slot)</div>
+  <div class="farrow">▶</div>
+  <div class="fstep orange"><span class="fn">DEV</span>slot_wait+process → 更新模型 → Shell 日志 → send(g_ui_slot, LIGHT_ON/OFF 等信号)</div>
+  <div class="farrow">▶</div>
+  <div class="fstep green"><span class="fn">UI</span>50ms 定时器 process → 槽按 signal + object 投递 → on_msg → 快照刷新</div>
+</div>
+<div class="flow">
+  <div class="fstep orange"><span class="fn">删除</span>DEV：send DEL_MODEL(object=模型)（不释放）</div>
+  <div class="farrow">▶</div>
+  <div class="fstep"><span class="fn">UI</span>home on_msg（DEL_MODEL, object=NULL）→ page_destroy(设备页) + 移除 tile → 重排</div>
+  <div class="farrow">▶</div>
+  <div class="fstep orange"><span class="fn">确认</span>UI：send DEL_ACK(object=模型) → DEV：model_store_del 释放</div>
+</div>
+
+<h2 id="thread-model"><span class="no">10</span>线程模式（线程间关系图）</h2>
+<p>每个槽<strong>归属于一个消费者线程</strong>：<code>g_ui_slot</code> 是 UI 线程的槽（消息由 UI 线程消费，其他线程向它发送）；<code>g_dev_slot</code> 是 DEV 线程的槽（消息由 DEV 线程消费，其他线程向它发送）。</p>
+
+<figure>
+<svg class="fig" viewBox="0 0 900 470" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="v2-t1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1a73e8"/>
+    </marker>
+    <marker id="v2-t2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#0d9488"/>
+    </marker>
+  </defs>
+
+  <!-- UI 泳道 -->
+  <rect x="25" y="25" width="300" height="420" rx="12" fill="#f1f5f9" stroke="#334155" stroke-width="1.5"/>
+  <text x="175" y="52" font-size="14" font-weight="bold" fill="#334155" text-anchor="middle">UI 线程（LVGL 主线程）</text>
+  <g font-size="11.5" fill="#334155">
+    <rect x="43" y="70" width="264" height="44" rx="8" fill="#ffffff" stroke="#94a3b8"/><text x="175" y="88" font-weight="bold" text-anchor="middle">lv_timer_handler 主循环</text><text x="175" y="105" font-size="10.5" fill="#64748b" text-anchor="middle">渲染 · 输入 · 动画</text>
+    <rect x="43" y="122" width="264" height="44" rx="8" fill="#ffffff" stroke="#94a3b8"/><text x="175" y="140" font-weight="bold" text-anchor="middle">页面导航</text><text x="175" y="157" font-size="10.5" fill="#64748b" text-anchor="middle">open / back / 缓存管理</text>
+    <rect x="43" y="174" width="264" height="44" rx="8" fill="#f0fdfa" stroke="#0d9488"/><text x="175" y="192" font-weight="bold" fill="#0f766e" text-anchor="middle">消费 g_ui_slot</text><text x="175" y="209" font-size="10.5" fill="#64748b" text-anchor="middle">50ms 定时器 → process → 按 signal + object 分发</text>
+    <rect x="43" y="226" width="264" height="44" rx="8" fill="#ffffff" stroke="#94a3b8"/><text x="175" y="244" font-weight="bold" text-anchor="middle">发送命令</text><text x="175" y="261" font-size="10.5" fill="#64748b" text-anchor="middle">lv_slot_send(g_dev_slot, SET_PROP...)</text>
+    <rect x="43" y="278" width="264" height="44" rx="8" fill="#ffffff" stroke="#94a3b8"/><text x="175" y="296" font-weight="bold" text-anchor="middle">快照读取（读方）</text><text x="175" y="313" font-size="10.5" fill="#64748b" text-anchor="middle">model_store_snapshot_* 锁内拷贝</text>
+    <rect x="43" y="330" width="264" height="44" rx="8" fill="#ffffff" stroke="#94a3b8"/><text x="175" y="348" font-weight="bold" text-anchor="middle">LVGL 对象唯一所有者</text><text x="175" y="365" font-size="10.5" fill="#64748b" text-anchor="middle">创建 · 销毁 · 属性修改</text>
+  </g>
+
+  <!-- 中间：两个槽 -->
+  <rect x="355" y="25" width="190" height="420" rx="12" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="450" y="52" font-size="14" font-weight="bold" fill="#475569" text-anchor="middle">消息槽通道</text>
+  <text x="450" y="68" font-size="10.5" fill="#94a3b8" text-anchor="middle">（动态链表 · lv_mutex_t 保护）</text>
+
+  <rect x="367" y="90" width="166" height="110" rx="8" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+  <text x="450" y="110" font-size="11.5" font-weight="bold" fill="#0d9488" text-anchor="middle">g_ui_slot</text>
+  <text x="450" y="130" font-size="10.5" fill="#475569" text-anchor="middle">事件上行 · 按 signal + object 分发</text>
+  <text x="450" y="148" font-size="10.5" fill="#475569" text-anchor="middle">消费者（归属）：UI 线程</text>
+  <text x="450" y="164" font-size="10.5" fill="#475569" text-anchor="middle">发送方：DEV 线程（其他线程）</text>
+  <text x="450" y="182" font-size="10.5" fill="#475569" text-anchor="middle">object 由槽匹配</text>
+
+  <rect x="367" y="230" width="166" height="110" rx="8" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+  <text x="450" y="250" font-size="11.5" font-weight="bold" fill="#0d9488" text-anchor="middle">g_dev_slot</text>
+  <text x="450" y="270" font-size="10.5" fill="#475569" text-anchor="middle">命令下行</text>
+  <text x="450" y="288" font-size="10.5" fill="#475569" text-anchor="middle">消费者（归属）：DEV 线程</text>
+  <text x="450" y="304" font-size="10.5" fill="#475569" text-anchor="middle">发送方：UI 线程（其他线程）</text>
+  <text x="450" y="322" font-size="10.5" fill="#475569" text-anchor="middle">object：不透明指针</text>
+
+  <text x="450" y="392" font-size="10.5" fill="#64748b" text-anchor="middle">模型层（box86）</text>
+  <text x="450" y="408" font-size="10.5" fill="#64748b" text-anchor="middle">写：DEV 唯一</text>
+  <text x="450" y="424" font-size="10.5" fill="#64748b" text-anchor="middle">读：UI 快照</text>
+
+  <!-- DEV 泳道 -->
+  <rect x="575" y="25" width="300" height="420" rx="12" fill="#f8fafc" stroke="#334155" stroke-width="1.5"/>
+  <text x="725" y="52" font-size="14" font-weight="bold" fill="#334155" text-anchor="middle">DEV 线程（业务线程）</text>
+  <g font-size="11.5" fill="#334155">
+    <rect x="593" y="70" width="264" height="44" rx="8" fill="#f0fdfa" stroke="#0d9488"/><text x="725" y="88" font-weight="bold" fill="#0f766e" text-anchor="middle">消费 g_dev_slot</text><text x="725" y="105" font-size="10.5" fill="#64748b" text-anchor="middle">slot_wait 唤醒 + process 批量处理</text>
+    <rect x="593" y="122" width="264" height="44" rx="8" fill="#fff7ed" stroke="#fdba74"/><text x="725" y="140" font-weight="bold" fill="#9a3412" text-anchor="middle">模型更新（唯一写方）</text><text x="725" y="157" font-size="10.5" fill="#64748b" text-anchor="middle">model_store 内部加锁</text>
+    <rect x="593" y="174" width="264" height="44" rx="8" fill="#f0fdfa" stroke="#0d9488"/><text x="725" y="192" font-weight="bold" fill="#0f766e" text-anchor="middle">发送事件</text><text x="725" y="209" font-size="10.5" fill="#64748b" text-anchor="middle">lv_slot_send(g_ui_slot, LIGHT_ON/OFF...)</text>
+    <rect x="593" y="226" width="264" height="44" rx="8" fill="#ffffff" stroke="#94a3b8"/><text x="725" y="244" font-weight="bold" text-anchor="middle">Shell 命令解析</text><text x="725" y="261" font-size="10.5" fill="#64748b" text-anchor="middle">同线程直接处理，无需过槽</text>
+    <rect x="593" y="278" width="264" height="44" rx="8" fill="#ffffff" stroke="#94a3b8"/><text x="725" y="296" font-weight="bold" text-anchor="middle">模型增删</text><text x="725" y="313" font-size="10.5" fill="#64748b" text-anchor="middle">add/del/move（删除需等 UI 确认）</text>
+  </g>
+
+  <!-- 箭头 -->
+  <line x1="367" y1="180" x2="307" y2="196" stroke="#1a73e8" stroke-width="1.8" marker-end="url(#v2-t1)"/>
+  <text x="316" y="208" font-size="10" fill="#1a73e8" text-anchor="middle">消费 g_ui_slot</text>
+  <line x1="307" y1="248" x2="367" y2="250" stroke="#1a73e8" stroke-width="1.8" marker-end="url(#v2-t1)"/>
+  <text x="316" y="240" font-size="10" fill="#1a73e8" text-anchor="middle">发送到 g_dev_slot</text>
+  <line x1="593" y1="196" x2="533" y2="180" stroke="#0d9488" stroke-width="1.8" marker-end="url(#v2-t2)"/>
+  <text x="572" y="190" font-size="10" fill="#0d9488" text-anchor="middle">发送到 g_ui_slot</text>
+  <line x1="533" y1="250" x2="593" y2="248" stroke="#0d9488" stroke-width="1.8" marker-end="url(#v2-t2)"/>
+  <text x="572" y="240" font-size="10" fill="#0d9488" text-anchor="middle">消费 g_dev_slot</text>
+
+  <text x="450" y="450" font-size="11" fill="#64748b" text-anchor="middle">约束：槽归属其唯一消费者线程（g_ui_slot 属 UI、g_dev_slot 属 DEV），其他线程只向槽发送；LVGL 对象仅 UI 线程操作；模型仅 DEV 线程写入（内部加锁）</text>
+</svg>
+<figcaption>图 4：线程间关系 —— 每个槽归属其唯一消费者线程，其他线程向槽发送消息</figcaption>
+</figure>
+
+<h2 id="inter-thread"><span class="no">11</span>线程间数据交互（时序）</h2>
+
+<h3>11.1 点击开关：命令下行 + 事件上行闭环</h3>
+<figure>
+<svg class="fig" viewBox="0 0 900 460" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="v2-c1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <rect x="40" y="40" width="240" height="110" rx="12" fill="#eef4fd" stroke="#1a73e8" stroke-width="2"/>
+  <text x="160" y="66" font-size="13" font-weight="bold" fill="#1a73e8" text-anchor="middle">A · UI 控件回调</text>
+  <text x="160" y="90" font-size="11" fill="#475569" text-anchor="middle">点击开关（灯2页）</text>
+  <text x="160" y="108" font-size="11" fill="#475569" text-anchor="middle">构造 {MSG_UI_SET_PROP, object=灯2模型,</text>
+  <text x="160" y="124" font-size="11" fill="#475569" text-anchor="middle">field="onoffsta", arg0=1}</text>
+  <text x="160" y="140" font-size="10.5" fill="#9a3412" text-anchor="middle">应用层自检对象有效性</text>
+
+  <rect x="620" y="40" width="240" height="110" rx="12" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+  <text x="740" y="66" font-size="13" font-weight="bold" fill="#0d9488" text-anchor="middle">B · g_dev_slot</text>
+  <text x="740" y="90" font-size="11" fill="#475569" text-anchor="middle">lv_slot_send（动态节点入队+signal）</text>
+  <text x="740" y="108" font-size="11" fill="#475569" text-anchor="middle">DEV 线程唯一消费者</text>
+  <text x="740" y="126" font-size="11" fill="#475569" text-anchor="middle">slot_wait 唤醒 → process 分发</text>
+
+  <rect x="620" y="300" width="240" height="110" rx="12" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+  <text x="740" y="326" font-size="13" font-weight="bold" fill="#ea580c" text-anchor="middle">C · DEV 线程处理</text>
+  <text x="740" y="350" font-size="11" fill="#475569" text-anchor="middle">按 object 定位灯2模型并更新</text>
+  <text x="740" y="368" font-size="11" fill="#475569" text-anchor="middle">Shell 输出 [UI] set 2 onoffsta 1</text>
+  <text x="740" y="386" font-size="11" fill="#475569" text-anchor="middle">send {MSG_DEV_LIGHT_ON, object=灯2模型}</text>
+
+  <rect x="40" y="300" width="240" height="110" rx="12" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+  <text x="160" y="326" font-size="13" font-weight="bold" fill="#0d9488" text-anchor="middle">D · g_ui_slot 分发</text>
+  <text x="160" y="350" font-size="11" fill="#475569" text-anchor="middle">UI 50ms 定时器 → process</text>
+  <text x="160" y="368" font-size="11" fill="#475569" text-anchor="middle">按信号类型投递给订阅页面</text>
+  <text x="160" y="386" font-size="11" fill="#475569" text-anchor="middle">灯2页 on_msg（object 已由槽匹配）→ 快照刷新</text>
+
+  <line x1="280" y1="95" x2="620" y2="95" stroke="#64748b" stroke-width="2.5" marker-end="url(#v2-c1)"/>
+  <text x="450" y="84" font-size="11" fill="#0d9488" text-anchor="middle" font-weight="bold">命令下行：lv_slot_send(g_dev_slot)</text>
+  <line x1="740" y1="150" x2="740" y2="300" stroke="#64748b" stroke-width="2.5" marker-end="url(#v2-c1)"/>
+  <text x="750" y="228" font-size="11" fill="#ea580c" font-weight="bold">DEV 消费处理</text>
+  <line x1="620" y1="355" x2="280" y2="355" stroke="#64748b" stroke-width="2.5" marker-end="url(#v2-c1)"/>
+  <text x="450" y="344" font-size="11" fill="#0d9488" text-anchor="middle" font-weight="bold">事件上行：lv_slot_send(g_ui_slot)</text>
+  <line x1="160" y1="300" x2="160" y2="150" stroke="#64748b" stroke-width="2.5" marker-end="url(#v2-c1)"/>
+  <text x="88" y="228" font-size="11" fill="#1a73e8" font-weight="bold">UI 分发 on_msg</text>
+
+  <circle cx="450" cy="225" r="62" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="5 4"/>
+  <text x="450" y="218" font-size="13" font-weight="bold" fill="#334155" text-anchor="middle">数据闭环</text>
+  <text x="450" y="238" font-size="10.5" fill="#64748b" text-anchor="middle">命令下行</text>
+  <text x="450" y="254" font-size="10.5" fill="#64748b" text-anchor="middle">事件上行</text>
+</svg>
+<figcaption>图 5：点击开关闭环 —— 下行命令、上行 LIGHT_ON 信号，槽按 object 命中绑定页面</figcaption>
+</figure>
+
+<h3>11.2 添加模型（Shell add 触发）</h3>
+<div class="flow">
+  <div class="fstep orange"><span class="fn">1</span>DEV：Shell add → 创建模型入 store（唯一 ID）</div>
+  <div class="farrow">▶</div>
+  <div class="fstep gray"><span class="fn">2</span>DEV：send(g_ui_slot, {ADD_MODEL, object=模型})</div>
+  <div class="farrow">▶</div>
+  <div class="fstep"><span class="fn">3</span>UI 定时器 process → home（订阅 ADD_MODEL，object=NULL）命中</div>
+  <div class="farrow">▶</div>
+  <div class="fstep"><span class="fn">4</span>创建 tile + 设备页 → page_bind_slot(各信号, object=模型) + 记录绑定对象</div>
+  <div class="farrow">▶</div>
+  <div class="fstep green"><span class="fn">5</span>设备页按需快照读取，进入待命</div>
+</div>
+
+<h3>11.3 删除模型：两段式握手（先销毁 UI，再释放模型）</h3>
+<figure>
+<svg class="fig" viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="v2-d1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <rect x="25" y="25" width="250" height="370" rx="12" fill="#fff7ed" stroke="#ea580c" stroke-width="1.5"/>
+  <text x="150" y="52" font-size="14" font-weight="bold" fill="#ea580c" text-anchor="middle">DEV 线程</text>
+  <rect x="325" y="25" width="250" height="370" rx="12" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.5"/>
+  <text x="450" y="52" font-size="14" font-weight="bold" fill="#0d9488" text-anchor="middle">消息槽通道</text>
+  <text x="450" y="72" font-size="10.5" fill="#64748b" text-anchor="middle">DEL 经 g_ui_slot 下行，ACK 经 g_dev_slot 上行</text>
+  <rect x="625" y="25" width="250" height="370" rx="12" fill="#eef4fd" stroke="#1a73e8" stroke-width="1.5"/>
+  <text x="750" y="52" font-size="14" font-weight="bold" fill="#1a73e8" text-anchor="middle">UI 线程（LVGL）</text>
+
+  <text x="150" y="95" font-size="12" fill="#9a3412" text-anchor="middle" font-weight="bold">① Shell: del 2</text>
+  <text x="150" y="115" font-size="10.5" fill="#9a3412" text-anchor="middle">构造删除消息（模型暂不释放）</text>
+  <text x="150" y="340" font-size="12" fill="#9a3412" text-anchor="middle" font-weight="bold">⑤ 收到 DEL_ACK</text>
+  <text x="150" y="362" font-size="11" fill="#475569" text-anchor="middle">model_store_del(灯2模型) 释放内存</text>
+
+  <text x="750" y="150" font-size="12" fill="#1a73e8" text-anchor="middle" font-weight="bold">③ 收到 DEL_MODEL（home，object=NULL 命中）</text>
+  <text x="750" y="175" font-size="11" fill="#475569" text-anchor="middle">按 object 定位设备页 → page_destroy（自动退订）</text>
+  <text x="750" y="205" font-size="11" fill="#475569" text-anchor="middle">移除 tile → 重排坐标</text>
+  <text x="750" y="235" font-size="11" fill="#475569" text-anchor="middle">发送 ACK</text>
+
+  <line x1="150" y1="130" x2="575" y2="130" stroke="#64748b" stroke-width="2" marker-end="url(#v2-d1)"/>
+  <text x="362" y="120" font-size="11" fill="#0d9488" text-anchor="middle" font-weight="bold">② MSG_DEV_DEL_MODEL(object=灯2模型)</text>
+
+  <line x1="625" y1="290" x2="150" y2="290" stroke="#64748b" stroke-width="2" marker-end="url(#v2-d1)"/>
+  <text x="387" y="280" font-size="11" fill="#0d9488" text-anchor="middle" font-weight="bold">④ MSG_UI_DEL_ACK(object=灯2模型)</text>
+
+  <text x="450" y="408" font-size="12" fill="#dc2626" font-weight="bold" text-anchor="middle">关键顺序：先销毁 UI 页面 → DEV 再释放模型，顺序不可颠倒（防悬垂指针）</text>
+</svg>
+<figcaption>图 6：删除模型两段式握手 —— 全程以同一模型指针为消息 object</figcaption>
+</figure>
+
+<h2 id="config"><span class="no">12</span>配置与限制</h2>
+<table>
+  <tr><th>宏</th><th>默认值</th><th>描述</th></tr>
+  <tr><td><code>LV_SLOT_NAME_MAX</code></td><td>24</td><td>槽名称最大长度</td></tr>
+  <tr><td><code>MAX_PAGE_STACK / MAX_CACHE_SIZE / MAX_PAGE_NAME</code></td><td>20 / 10 / 32</td><td>页面管理器（不变）</td></tr>
+  <tr><td><code>MAX_IMPL</code></td><td>5</td><td>滑动容器实现上限（不变）</td></tr>
+</table>
+<table>
+  <tr><th>运行时配置</th><th>说明</th></tr>
+  <tr><td>g_ui_slot 消费周期</td><td>LVGL 定时器 50ms（main 中 lv_timer_create）</td></tr>
+  <tr><td>g_dev_slot 消费</td><td>业务线程主循环 slot_wait + process</td></tr>
+</table>
+<p class="note">消息队列与订阅表无固定容量宏：动态链表按需申请，容量只受内存约束（完全无上限，用户决策）。</p>
+
+<h2 id="errors"><span class="no">13</span>错误处理与调试</h2>
+<ol>
+  <li><strong>空指针/边界检查</strong>：槽与 Page 所有公共 API 均做参数防御。</li>
+  <li><strong>分配失败</strong>：lv_slot_send 返回 -1 并 dropped++；应用可周期性打印 dropped 监控内存压力。</li>
+  <li><strong>悬垂订阅</strong>：page_destroy 自动 unsubscribe_all，杜绝页面销毁后仍被分发。</li>
+  <li><strong>悬垂对象</strong>：两段式删除（先销毁 UI 页面再释放模型）+ 槽按 object 指针匹配（object 不透明、槽不释放）；对象有效性由应用层模型自身管理。</li>
+  <li><strong>调试日志</strong>：槽初始化/订阅/发送/分发打印关键路径（slot/页面/业务 前缀）。</li>
+</ol>
+
+<h2 id="extension"><span class="no">14</span>扩展指南</h2>
+<ol>
+  <li><strong>新增信号</strong>：在应用 msg.h 枚举中追加（框架零改动）；定义 object / payload 语义；页面按需订阅。</li>
+  <li><strong>新增槽</strong>：lv_slot_init 创建 → 指定消费者线程（wait+process 或定时器 process）。</li>
+  <li><strong>信号级广播</strong>：发送 object=NULL 的广播消息；精确订阅者因 NULL 双向通配命中，回调内如需区分广播可判断 <code>msg-&gt;object == NULL</code>。</li>
+  <li><strong>回调过滤策略</strong>：多实例（订阅时 object=对象，槽已过滤）、类型过滤（应用层自行强转 object 读取其类型）、全收（订阅 object=NULL）——实例维度已由槽完成，回调只做业务处理。</li>
+  <li><strong>新增对象/模型类型</strong>：属应用层职责（box86：定义模型结构 → 注册类型枚举 → 实现 add/set/snapshot → 页面以 object 订阅），lvframe 零改动。</li>
+</ol>
+
+<h2 id="known"><span class="no">15</span>已知限制</h2>
+<ol>
+  <li>消息队列完全无上限：生产速率长期大于消费速率时内存可能持续增长（依赖 lv_malloc 失败丢弃兜底，无水位线）。</li>
+  <li>一个槽仅一个消费者线程（设计约束，代码不做强制校验）。</li>
+  <li>消息只携带指针与便捷参数，无法携带大块数据（大负载需应用自定义共享结构）。</li>
+  <li>object 为裸指针，其有效期依赖"两段式删除"保证；语义 B 下广播会命中精确订阅者，回调如需区分广播须自行判断 <code>msg-&gt;object == NULL</code>。</li>
+</ol>
+
+<h2 id="api"><span class="no">16</span>接口汇总</h2>
+<h3>槽（lvframe/slot.h）</h3>
+<pre>
+void lv_slot_init(lv_slot_t* slot, const char* name);
+void lv_slot_deinit(lv_slot_t* slot);
+int  lv_slot_send(lv_slot_t* slot, const lv_slot_msg_t* msg);                          /* 任意线程 */
+int  lv_slot_subscribe(lv_slot_t* slot, int signal, void* object,
+                       lv_slot_handler_t handler, void* ctx);
+int  lv_slot_unsubscribe_all(lv_slot_t* slot, void* ctx);
+int  lv_slot_unsubscribe_one(lv_slot_t* slot, int signal, void* object,
+                             lv_slot_handler_t handler, void* ctx);  /* 对齐 Qt disconnect */
+void lv_slot_process(lv_slot_t* slot);                                                  /* 唯一消费者 */
+int  lv_slot_wait(lv_slot_t* slot);                                                     /* 阻塞等待 */
+</pre>
+<h3>Page（lvframe/page.h）</h3>
+<pre>
+Page*       page_create(PageLifecycle* cbs, void* params);
+void        page_destroy(Page* page);                       /* 自动退订绑定槽 */
+lv_obj_t*   page_get_root(Page* page);
+void        page_set_user_data(Page* page, void* data);
+void*       page_get_user_data(Page* page);
+int         page_bind_slot(Page* page, lv_slot_t* slot, int signal, void* object);
+int         page_unbind_slot(Page* page, lv_slot_t* slot, int signal, void* object);
+void        page_set_root_created_cb(void (*cb)(lv_obj_t* root));
+</pre>
+<h3>页面管理器（page_manager.h）</h3>
+<pre>
+void   page_manager_init(void);
+void   page_manager_set_cache_size(int size);
+void   page_manager_register(const char* name, PageCreator creator);
+int    page_manager_open(const char* name, void* params);
+void   page_manager_back(void);
+void   page_manager_back_to_home(void);
+Page*  page_manager_get_current(void);
+void   page_manager_handle_back_key(void);
+</pre>
+<h3>滑动容器（swipe_container.h）</h3>
+<pre>
+void      swipe_container_register(const char* name, SwipeContainerOps* ops);
+lv_obj_t* swipe_container_create(const char* name, lv_obj_t* parent);
+lv_obj_t* swipe_container_add_page(lv_obj_t* container, int index);
+void      swipe_container_remove_page(lv_obj_t* container, int index);
+void      swipe_container_switch_to(lv_obj_t* container, int index);
+int       swipe_container_get_current(lv_obj_t* container);
+int       swipe_container_get_count(lv_obj_t* container);
+</pre>
+<p class="note">数据模型层接口属应用层（box86/models/），不在 lvframe 接口汇总内，见 <a href="../../examples/box86/DESIGN.html">box86 工程设计文档 §5</a>。</p>
+
+<h2 id="split"><span class="no">17</span>lvframe 拆分与代码迁移清单</h2>
+<div class="grid g2">
+  <div class="fcard sl"><b>lvframe（拆分后）</b><br>
+    新增 <code>slot.h/c</code>（动态链表、按 signal + object 分发、payload 由槽释放、四元组退订）；改造 <code>page.h/c</code>（slot / on_msg / page_bind_slot / page_unbind_slot / 自动退订，移除模型相关字段）；<code>page_manager</code>、<code>swipe_container</code>、<code>impl/tileview_impl</code> 基本不变（删除 find_page_by_model）。<br>
+    <strong>删除</strong>：<code>event_bus.*</code>、<code>device_manager.*</code>、<code>device/</code>（模型相关全部移出）。
+  </div>
+  <div class="fcard dv"><b>box86（应用层）</b><br>
+    新增 <code>msg.h</code>（信号化枚举）、<code>slots.h/c</code>（双槽实例）、<code>models/</code>（model_base / model_store / device_model 改造）；重写 <code>business.c</code>（槽消费 + Shell）、pages 订阅逻辑、<code>main.c</code>。<br>
+    <strong>删除</strong>：<code>app_bus.*</code>、<code>app_bus_adapter.*</code>。
+  </div>
+</div>
+<h3>17.1 验证计划（代码实施后执行）</h3>
+<ol>
+  <li>编译：cmake + SDL 构建，消除全部告警；</li>
+  <li>信号匹配：开灯只发 LIGHT_ON，仅订阅 LIGHT_ON 的页面响应；关灯同理；</li>
+  <li>多实例匹配：添加 3 个灯，set 其中一个，仅对应页面刷新（回调 payload 匹配）；</li>
+  <li>一模型多 UI：打开设备信息浮层，同一条 LIGHT_ON 同时刷新 tile 页与浮层；</li>
+  <li>信号广播：ALL_LIGHTS_OFF 广播，所有灯页响应、窗帘页不响应；</li>
+  <li>删除握手：del 后先销毁页面再释放模型，`get` 查询报不存在；长时间运行无内存增长；</li>
+  <li>线程安全：并发 Shell 命令 + UI 点击，无崩溃、无数据竞争告警；</li>
+  <li>零闲置内存：空闲时队列无残留节点（count=0，无预分配）。</li>
+</ol>
+
+<h2 id="summary"><span class="no">18</span>总结</h2>
+<ul>
+  <li><strong>统一通信原语</strong>：槽取代 event_bus/app_bus/adapter 三套机制，任意线程发送、单消费者按 signal + object 分发。</li>
+  <li><strong>能力边界</strong>：lvframe 只提供消息槽 + 页面生命周期栈（含左右滑动页管理）；数据模型及其使用、页面增删决策完全归应用层。</li>
+  <li><strong>对象匹配上移</strong>：signal + object 匹配由槽完成（NULL 双向通配）；payload 语义与业务路由由回调自决。</li>
+  <li><strong>零闲置内存</strong>：队列与订阅表动态链表，无预分配容量。</li>
+  <li><strong>生命周期安全</strong>：页面自动退订 + 模型两段式删除，杜绝悬垂。</li>
+</ul>
+
+<footer>
+  lvframe 设计文档 v2（方案 + 详细设计合并） · 2026-08-15 · 修订中（方案未定，禁止修改代码）<br>
+  相关文档：<a href="../../examples/box86/DESIGN.html">box86 工程设计文档.html</a>（应用实例） · <a href="README.md">README.md</a>（使用说明）
+</footer>
+
+</div>
+</body>
+</html>

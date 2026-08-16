@@ -1,6 +1,17 @@
+/**
+ * @file         device_page.c
+ * @brief        设备页按设备类型分发构建与生命周期管理，绑定槽并按 object 匹配
+ *
+ * @author       pochard(email@xxx.com)
+ * @version      0.2
+ * @date         2026-08-15
+ * @copyright    Copyright (c) 2026..
+ */
+
 #include "device_page_internal.h"
-#include "lvframe/event_bus.h"
-#include "app_bus.h"
+#include "msg.h"
+#include "slots.h"
+#include "models/model_base.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,40 +19,24 @@
 static void on_create(Page* page, void* params)
 {
     DevicePageParams* p = (DevicePageParams*)params;
-    if (!p || !p->store) {
-        page_set_model_valid(page, 0);
-        return;
-    }
+    if (!p || !p->store || !p->model) return;
 
     DevicePageData* d = calloc(1, sizeof(DevicePageData));
-    if (!d) {
-        page_set_model_valid(page, 0);
-        return;
-    }
+    if (!d) return;
 
-    d->bus = p->bus;
     d->store = p->store;
-    d->device_id = p->device_id;
-
-    lv_device_base_t bases[LV_MAX_DEVICES];
-    int order[LV_MAX_DEVICES], count = 0;
-    lv_device_store_snapshot_base(d->store, bases, order, &count);
-    for (int i = 0; i < count; i++) {
-        if (bases[i].id == d->device_id) {
-            d->type = bases[i].type;
-            break;
-        }
-    }
+    d->model = p->model;
+    d->type  = ((model_base_t*)d->model)->type;
 
     page_set_user_data(page, d);
 
     lv_obj_t* root = page_get_root(page);
 
     switch (d->type) {
-    case BOX86_DEVICE_TYPE_CCT:
+    case MODEL_TYPE_CCT:
         cct_light_page_build(root, d);
         break;
-    case BOX86_DEVICE_TYPE_CURTAIN:
+    case MODEL_TYPE_CURTAIN:
         curtain_page_build(root, d);
         break;
     default:
@@ -49,47 +44,46 @@ static void on_create(Page* page, void* params)
         break;
     }
 
+    /* 按信号 + 对象订阅（object = 该模型指针，由槽过滤） */
     switch (d->type) {
-    case BOX86_DEVICE_TYPE_CCT:
-        cct_light_page_refresh(d);
+    case MODEL_TYPE_CCT:
+        page_bind_slot(page, &g_ui_slot, MSG_DEV_LIGHT_ON,  d->model);
+        page_bind_slot(page, &g_ui_slot, MSG_DEV_LIGHT_OFF, d->model);
+        page_bind_slot(page, &g_ui_slot, MSG_DEV_CCT_TEMP,  d->model);
         break;
-    case BOX86_DEVICE_TYPE_CURTAIN:
-        curtain_page_refresh(d);
+    case MODEL_TYPE_CURTAIN:
+        page_bind_slot(page, &g_ui_slot, MSG_DEV_CURTAIN_POS, d->model);
         break;
     default:
-        light_page_refresh(d);
+        page_bind_slot(page, &g_ui_slot, MSG_DEV_LIGHT_ON,  d->model);
+        page_bind_slot(page, &g_ui_slot, MSG_DEV_LIGHT_OFF, d->model);
         break;
     }
 
-    event_bus_subscribe(page, EVENT_APP_MESSAGE);
-    printf("[DevicePage] on_create completed, device_id=%d, type=%d\n", d->device_id, d->type);
+    switch (d->type) {
+    case MODEL_TYPE_CCT:     cct_light_page_refresh(d); break;
+    case MODEL_TYPE_CURTAIN: curtain_page_refresh(d);   break;
+    default:                 light_page_refresh(d);     break;
+    }
+
+    printf("[DevicePage] on_create completed, model=%p, type=%d\n", d->model, d->type);
 }
 
-static void on_event(Page* page, Event* event)
+static void on_msg(Page* page, const lv_slot_msg_t* msg)
 {
-    if (event->type != EVENT_APP_MESSAGE) return;
-
     DevicePageData* d = page_get_user_data(page);
     if (!d) return;
 
-    if (event->data.user.device_id != d->device_id) return;
-
-    switch (event->data.user.msg_type) {
-    case MSG_BIZ_REFRESH:
+    switch (msg->signal) {
+    case MSG_DEV_LIGHT_ON:
+    case MSG_DEV_LIGHT_OFF:
+    case MSG_DEV_CCT_TEMP:
+    case MSG_DEV_CURTAIN_POS:
         switch (d->type) {
-        case BOX86_DEVICE_TYPE_CCT:
-            cct_light_page_refresh(d);
-            break;
-        case BOX86_DEVICE_TYPE_CURTAIN:
-            curtain_page_refresh(d);
-            break;
-        default:
-            light_page_refresh(d);
-            break;
+        case MODEL_TYPE_CCT:     cct_light_page_refresh(d); break;
+        case MODEL_TYPE_CURTAIN: curtain_page_refresh(d);   break;
+        default:                 light_page_refresh(d);     break;
         }
-        break;
-    case MSG_BIZ_DEL_DEVICE:
-        page_set_model_valid(page, 0);
         break;
     default:
         break;
@@ -100,10 +94,9 @@ static void on_destroy(Page* page)
 {
     DevicePageData* d = page_get_user_data(page);
     if (d) {
-        event_bus_unsubscribe(page, EVENT_APP_MESSAGE);
-        if (d->type == BOX86_DEVICE_TYPE_LIGHT) {
+        if (d->type == MODEL_TYPE_LIGHT) {
             light_page_destroy(d);
-        } else if (d->type == BOX86_DEVICE_TYPE_CCT) {
+        } else if (d->type == MODEL_TYPE_CCT) {
             cct_light_page_destroy(d);
         }
         free(d);
@@ -115,7 +108,7 @@ Page* device_page_create(DevicePageParams* params)
     static PageLifecycle lc = {
         .on_create  = on_create,
         .on_destroy = on_destroy,
-        .on_event   = on_event,
+        .on_msg     = on_msg,
     };
     return page_create(&lc, params);
 }

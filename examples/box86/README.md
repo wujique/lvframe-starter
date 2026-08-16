@@ -11,10 +11,10 @@ box86 实现了一个触控式智能家居控制面板，支持：
 - 多设备页左右滑动切换（普通灯 / 色温灯 / 电动窗帘）
 - 下拉手势进入设置页，上拉返回
 - 通过终端 Shell 命令动态添加、删除、控制设备
-- UI 与业务逻辑双线程解耦，通过消息总线通信
+- UI 与业务逻辑双线程解耦，通过 **消息槽**（`g_ui_slot` / `g_dev_slot`）通信
 - 中文界面显示（FreeType 引擎，思源宋体）
 
-详细设计见 [DESIGN.md](DESIGN.md)，测试操作见 [TESTING.md](TESTING.md)。
+详细设计见 [DESIGN.html](DESIGN.html)，测试操作见 [TESTING.md](TESTING.md)。
 
 ---
 
@@ -22,31 +22,40 @@ box86 实现了一个触控式智能家居控制面板，支持：
 
 ```
 box86/
-├── main.c                  # 应用入口，初始化平台、字体、页面、业务线程
+├── main.c                  # 应用入口：初始化双槽/模型仓库/业务线程/页面/屏保
+├── msg.h                   # 应用信号枚举
+├── slots.h / slots.c       # g_ui_slot / g_dev_slot 双槽实例
+├── business.h / business.c # 业务线程（消费 g_dev_slot + Shell 命令）
+├── screensaver.h / .c      # 屏保状态机
 ├── font.h / font.c         # 中文字体加载与注入
 ├── config.h                # 编译期配置（assets 路径、字体路径等）
 ├── lv_conf.h               # LVGL 功能配置
-├── app_bus.h / app_bus.c   # UI ↔ 业务线程消息队列
-├── app_bus_adapter.h/c     # 将 AppBus 消息桥接到 lvframe EventBus
-├── business.h / business.c # 业务逻辑线程（Shell 命令解析、数据模型管理）
 ├── pages/                  # 各页面实现
-│   ├── home_page.c         # 主页（设备页容器 + 下拉设置页）
+│   ├── home_page.c         # 主页（设备页容器 + 下拉设置页 + 生命周期信号）
 │   ├── device_page.c       # 设备页分发（按类型路由到具体实现）
 │   ├── light_page.c        # 普通灯控制页
 │   ├── cct_light_page.c    # 色温灯控制页
 │   ├── curtain_page.c      # 电动窗帘控制页
-│   ├── settings_page.c     # 设置页
-│   └── more_settings_page.c# 更多设置页
-├── models/                 # 数据模型定义
+│   ├── settings_page.c     # 快捷设置面板
+│   ├── more_settings_page.c# 屏保详细设置页
+│   ├── device_info_page.c  # 设备信息覆盖层
+│   ├── screensaver_page.c  # 屏保页
+│   └── blank_page.c        # 息屏页
+├── models/                 # 应用数据模型（应用层，不归 lvframe）
+│   ├── model_base.h        # 通用模型头
+│   ├── device_model.h      # 灯 / 色温灯 / 窗帘 / 系统模型
+│   └── model_store.h / .c  # 模型仓库（增删改查 + 类型化快照）
 ├── assets/                 # 资源文件
 │   └── font/               # 字体文件
 │       └── SourceHanSerifCN-Regular.ttf
+├── third_party/freetype2/  # FreeType 头文件（内置）
+├── tools/font_bench.c      # 字体渲染基准测试
 ├── platform/               # 应用自有平台支持
 │   └── rk3506/             # RK3506 Linux 平台实现
 │       ├── platform_rk3506.c
 │       └── CMakeLists.txt
 ├── CMakeLists.txt
-├── DESIGN.md               # 详细设计文档
+├── DESIGN.html             # 详细设计文档
 ├── README.md               # 本文件
 └── TESTING.md              # 测试操作指南
 ```

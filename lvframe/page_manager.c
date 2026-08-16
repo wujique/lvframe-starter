@@ -1,9 +1,25 @@
+/**
+ * @file         page_manager.c
+ * @brief        页面管理器实现，包含栈式导航、LRU 缓存和注册表查找
+ *
+ * @author       pochard(email@xxx.com)
+ * @version      0.1
+ * @date         2026-05-16
+ * @copyright    Copyright (c) 2026..
+ */
+
 #include "page_manager.h"
 #include <string.h>
 #include <stdio.h>
 
+/** 全局页面管理器实例 */
 static PageManager g_manager;
 
+/**
+ * @brief        初始化页面管理器，清空栈、缓存和注册表
+ *
+ * @return       void
+ */
 void page_manager_init(void) {
     g_manager.stack_top = -1;
     g_manager.cache_size = 3;
@@ -14,11 +30,26 @@ void page_manager_init(void) {
     printf("PageManager: initialized\n");
 }
 
+/**
+ * @brief        设置缓存大小上限（超过 MAX_CACHE_SIZE 时截断）
+ *
+ * @param        size                 期望的缓存条目数
+ * @return       void
+ */
 void page_manager_set_cache_size(int size) {
     if (size > MAX_CACHE_SIZE) size = MAX_CACHE_SIZE;
     g_manager.cache_size = size;
 }
 
+/**
+ * @brief        向注册表中注册页面名称和工厂函数
+ *
+ * 同名页面已存在时更新工厂函数而不重复添加。
+ *
+ * @param        name                 页面唯一注册名称
+ * @param        creator              页面工厂函数
+ * @return       void
+ */
 void page_manager_register(const char* name, PageCreator creator) {
     if (g_manager.registry_count >= 20) {
         printf("PageManager: registry full, cannot register page '%s'\n", name);
@@ -40,6 +71,12 @@ void page_manager_register(const char* name, PageCreator creator) {
     printf("PageManager: registered page '%s' (total %d)\n", name, g_manager.registry_count);
 }
 
+/**
+ * @brief        在注册表中按名称查找工厂函数
+ *
+ * @param        name                 要查找的页面名称
+ * @return       PageCreator 工厂函数指针，未找到返回 NULL
+ */
 static PageCreator find_creator(const char* name) {
     for (int i = 0; i < g_manager.registry_count; i++) {
         if (strcmp(g_manager.registry[i].name, name) == 0) {
@@ -49,6 +86,13 @@ static PageCreator find_creator(const char* name) {
     return NULL;
 }
 
+/**
+ * @brief        将页面加入 LRU 缓存，超出容量时淘汰最旧条目
+ *
+ * @param        name                 页面注册名称
+ * @param        page                 要缓存的页面指针
+ * @return       void
+ */
 static void add_to_cache(const char* name, Page* page) {
     if (!page) return;
 
@@ -74,6 +118,12 @@ static void add_to_cache(const char* name, Page* page) {
     }
 }
 
+/**
+ * @brief        在缓存中按名称查找并取出页面（命中后从缓存移除）
+ *
+ * @param        name                 要查找的页面名称
+ * @return       Page* 命中的页面指针，未命中返回 NULL
+ */
 static Page* find_in_cache(const char* name) {
     for (int i = 0; i < g_manager.cache_count; i++) {
         if (strcmp(g_manager.cache[i].name, name) == 0) {
@@ -89,6 +139,16 @@ static Page* find_in_cache(const char* name) {
     return NULL;
 }
 
+/**
+ * @brief        打开指定名称的页面，优先从缓存恢复，否则通过工厂创建
+ *
+ * 当前页面依次执行 on_pause / on_stop，新页面执行 on_start / on_resume，
+ * 打开失败时恢复当前页面到前台。
+ *
+ * @param        name                 已注册的页面名称
+ * @param        params               透传给工厂函数或 on_start 的参数
+ * @return       int PageManagerError 错误码，成功返回 PAGE_MANAGER_OK
+ */
 int page_manager_open(const char* name, void* params) {
     printf("PageManager: opening page '%s', params=%p\n", name, params);
 
@@ -177,6 +237,13 @@ int page_manager_open(const char* name, void* params) {
     return PAGE_MANAGER_OK;
 }
 
+/**
+ * @brief        返回上一个页面，当前页面缓存以备复用
+ *
+ * 若已处于首页（stack_top <= 0）则忽略。
+ *
+ * @return       void
+ */
 void page_manager_back(void) {
     printf("PageManager: back triggered, stack_top=%d\n", g_manager.stack_top);
     if (g_manager.stack_top <= 0) {
@@ -223,6 +290,11 @@ void page_manager_back(void) {
     printf("PageManager: back completed, new stack_top=%d\n", g_manager.stack_top);
 }
 
+/**
+ * @brief        循环调用 page_manager_back 直到栈中只剩首页
+ *
+ * @return       void
+ */
 void page_manager_back_to_home(void) {
     printf("PageManager: back to home, stack_top=%d\n", g_manager.stack_top);
     while (g_manager.stack_top > 0) {
@@ -231,6 +303,11 @@ void page_manager_back_to_home(void) {
     printf("PageManager: now at home page\n");
 }
 
+/**
+ * @brief        获取当前栈顶页面指针
+ *
+ * @return       Page* 当前页面指针，栈为空时返回 NULL
+ */
 Page* page_manager_get_current(void) {
     if (g_manager.stack_top >= 0) {
         return g_manager.stack[g_manager.stack_top].page;
@@ -238,26 +315,11 @@ Page* page_manager_get_current(void) {
     return NULL;
 }
 
+/**
+ * @brief        处理返回键事件，等同于 page_manager_back
+ *
+ * @return       void
+ */
 void page_manager_handle_back_key(void) {
     page_manager_back();
-}
-
-Page* page_manager_find_page_by_model(void* model) {
-    printf("PageManager: find page by model=%p\n", model);
-    for (int i = 0; i <= g_manager.stack_top; i++) {
-        if (g_manager.stack[i].page && g_manager.stack[i].page->user_data == model) {
-            printf("PageManager: found in stack index=%d, page=%p\n", i, g_manager.stack[i].page);
-            return g_manager.stack[i].page;
-        }
-    }
-
-    for (int i = 0; i < g_manager.cache_count; i++) {
-        if (g_manager.cache[i].page && g_manager.cache[i].page->user_data == model) {
-            printf("PageManager: found in cache index=%d, page=%p\n", i, g_manager.cache[i].page);
-            return g_manager.cache[i].page;
-        }
-    }
-
-    printf("PageManager: model not found\n");
-    return NULL;
 }

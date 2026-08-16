@@ -2,17 +2,22 @@
 #define DEVICE_PAGE_INTERNAL_H
 
 /**
- * 设备页内部共享数据结构，仅供各设备页 .c 文件使用，不对外暴露。
+ * @file         device_page_internal.h
+ * @brief        设备页内部共享数据结构及各子页面接口声明
+ *
+ * @author       pochard(email@xxx.com)
+ * @version      0.2
+ * @date         2026-08-15
+ * @copyright    Copyright (c) 2026..
  */
 
 #include "device_page.h"
-#include "models/device_store.h"
+#include "models/model_store.h"
 
 typedef struct {
-    AppBus*      bus;
-    lv_device_store_t* store;
-    int          device_id;
-    int                type;
+    model_store_t* store;   /**< 模型仓库 */
+    void*          model;   /**< 绑定模型指针（object）*/
+    int            type;    /**< 模型类型 */
 
     lv_obj_t*    lbl_name;
     lv_obj_t*    lbl_status;
@@ -44,7 +49,6 @@ typedef struct {
     int             cct_anim_ticks;    /* 剩余动画帧数 */
 } DevicePageData;
 
-/* 各设备页构建/刷新函数声明 */
 void light_page_build(lv_obj_t* root, DevicePageData* d);
 void light_page_refresh(DevicePageData* d);
 void light_page_destroy(DevicePageData* d);

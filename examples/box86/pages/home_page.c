@@ -1,12 +1,23 @@
+/**
+ * @file         home_page.c
+ * @brief        主页实现：基于 tileview 的水平设备页切换 + 下拉设置面板，
+ *               订阅 g_ui_slot 的生命周期信号动态增删设备页
+ *
+ * @author       pochard(email@xxx.com)
+ * @version      0.2
+ * @date         2026-08-15
+ * @copyright    Copyright (c) 2026..
+ */
 #include "home_page.h"
 #include "device_page.h"
 #include "settings_page.h"
 #include "lvframe/page.h"
 #include "lvframe/page_manager.h"
 #include "lvframe/swipe_container.h"
-#include "lvframe/device/lv_device_model.h"
-#include "app_bus.h"
-#include "app_bus_adapter.h"
+#include "msg.h"
+#include "slots.h"
+#include "models/model_base.h"
+#include "models/model_store.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,12 +39,11 @@ typedef enum {
 } PullState;
 
 typedef struct {
-    AppBus*      bus;
-    lv_device_store_t* store;
+    model_store_t* store;
     lv_obj_t*    tileview;
     lv_obj_t*    settings_cont;
-    int          device_ids[LV_MAX_DEVICES];
-    Page*        device_pages[LV_MAX_DEVICES];
+    void*        models[MODEL_STORE_MAX];       /* 设备模型指针（按显示顺序）*/
+    Page*        device_pages[MODEL_STORE_MAX]; /* 对应设备页 */
     int          device_count;
 
     PullState    pull_state;
@@ -74,49 +84,53 @@ static void animate_settings_to(lv_obj_t* cont, int32_t to_y,
     lv_anim_start(&a);
 }
 
-/* ── 设备列表事件 ── */
-static int find_tile_idx(HomePageData* d, int device_id)
+/* ── 设备列表 ── */
+static int find_tile_idx(HomePageData* d, void* model)
 {
     for (int i = 0; i < d->device_count; i++)
-        if (d->device_ids[i] == device_id) return i;
+        if (d->models[i] == model) return i;
     return -1;
 }
 
-static void on_event(Page* page, Event* event)
+/* 把一个模型对应的设备页追加到 tileview 末尾 */
+static void append_device_page(HomePageData* d, void* model)
 {
-    if (event->type != EVENT_APP_MESSAGE) return;
+    lv_obj_t* tile = swipe_container_add_page(d->tileview, d->device_count);
+    if (!tile) return;
+    DevicePageParams params = { .store = d->store, .model = model };
+    Page* device_page = device_page_create(&params);
+    if (device_page) {
+        lv_obj_t* dp_root = page_get_root(device_page);
+        lv_obj_set_parent(dp_root, tile);
+        lv_obj_set_size(dp_root, LV_PCT(100), LV_PCT(100));
+        lv_obj_set_style_pad_all(dp_root, 0, LV_PART_MAIN);
+        lv_obj_set_style_border_width(dp_root, 0, LV_PART_MAIN);
+        lv_obj_set_style_radius(dp_root, 0, LV_PART_MAIN);
+        lv_obj_clear_flag(dp_root, LV_OBJ_FLAG_HIDDEN);
+        /* device_page root 的触摸事件需要能冒泡到 tile → tileview → home root */
+        lv_obj_add_flag(dp_root, LV_OBJ_FLAG_EVENT_BUBBLE);
+        d->device_pages[d->device_count] = device_page;
+        d->models[d->device_count]       = model;
+        d->device_count++;
+    }
+}
+
+static void on_msg(Page* page, const lv_slot_msg_t* msg)
+{
     HomePageData* d = page_get_user_data(page);
     if (!d) return;
 
-    switch (event->data.user.msg_type) {
-    case MSG_BIZ_ADD_DEVICE: {
-        if (d->device_count >= LV_MAX_DEVICES) break;
-        if (find_tile_idx(d, event->data.user.device_id) >= 0) break;
-        lv_obj_t* tile = swipe_container_add_page(d->tileview, d->device_count);
-        if (!tile) break;
-        DevicePageParams params = {
-            .bus = d->bus, .store = d->store,
-            .device_id = event->data.user.device_id,
-        };
-        Page* device_page = device_page_create(&params);
-        if (device_page) {
-            lv_obj_t* dp_root = page_get_root(device_page);
-            lv_obj_set_parent(dp_root, tile);
-            lv_obj_set_size(dp_root, LV_PCT(100), LV_PCT(100));
-            lv_obj_set_style_pad_all(dp_root, 0, LV_PART_MAIN);
-            lv_obj_set_style_border_width(dp_root, 0, LV_PART_MAIN);
-            lv_obj_set_style_radius(dp_root, 0, LV_PART_MAIN);
-            lv_obj_clear_flag(dp_root, LV_OBJ_FLAG_HIDDEN);
-            /* device_page root 的触摸事件需要能冒泡到 tile → tileview → home root */
-            lv_obj_add_flag(dp_root, LV_OBJ_FLAG_EVENT_BUBBLE);
-            d->device_pages[d->device_count] = device_page;
-            d->device_ids[d->device_count]   = event->data.user.device_id;
-            d->device_count++;
-        }
+    switch (msg->signal) {
+    case MSG_DEV_ADD_MODEL: {
+        void* model = msg->object;
+        if (!model || d->device_count >= MODEL_STORE_MAX) break;
+        if (find_tile_idx(d, model) >= 0) break;
+        append_device_page(d, model);
         break;
     }
-    case MSG_BIZ_DEL_DEVICE: {
-        int idx = find_tile_idx(d, event->data.user.device_id);
+    case MSG_DEV_DEL_MODEL: {
+        void* model = msg->object;
+        int idx = find_tile_idx(d, model);
         if (idx < 0) break;
         int cur = swipe_container_get_current(d->tileview);
         if (cur == idx) {
@@ -125,69 +139,46 @@ static void on_event(Page* page, Event* event)
         }
         if (d->device_pages[idx]) { page_destroy(d->device_pages[idx]); d->device_pages[idx] = NULL; }
         swipe_container_remove_page(d->tileview, idx);
-        memmove(&d->device_ids[idx],   &d->device_ids[idx+1],   (d->device_count-idx-1)*sizeof(int));
+        memmove(&d->models[idx],       &d->models[idx+1],       (d->device_count-idx-1)*sizeof(void*));
         memmove(&d->device_pages[idx], &d->device_pages[idx+1], (d->device_count-idx-1)*sizeof(Page*));
         d->device_count--;
-        AppMsg ack = { .type = MSG_UI_DEL_ACK, .device_id = event->data.user.device_id };
-        app_bus_send_ui(d->bus, &ack);
+
+        lv_slot_msg_t ack;
+        memset(&ack, 0, sizeof(ack));
+        ack.signal = MSG_UI_DEL_ACK;
+        ack.object = model;
+        lv_slot_send(&g_dev_slot, &ack);
         break;
     }
-    case MSG_BIZ_REFRESH:
-        break;
-    case MSG_BIZ_MOVE_DEVICE: {
-        lv_device_base_t bases[LV_MAX_DEVICES];
-        int order[LV_MAX_DEVICES], count = 0;
-        lv_device_store_snapshot_base(d->store, bases, order, &count);
+    case MSG_DEV_MOVE_MODEL: {
+        void* models[MODEL_STORE_MAX];
+        int count = 0;
+        model_store_snapshot_ordered(d->store, models, &count);
         for (int i = d->device_count-1; i >= 0; i--) {
             if (d->device_pages[i]) { page_destroy(d->device_pages[i]); d->device_pages[i] = NULL; }
             swipe_container_remove_page(d->tileview, i);
         }
         d->device_count = 0;
         for (int i = 0; i < count; i++) {
-            lv_device_base_t* b = &bases[order[i]];
-            lv_obj_t* tile = swipe_container_add_page(d->tileview, i);
-            DevicePageParams params = { .bus = d->bus, .store = d->store, .device_id = b->id };
-            Page* device_page = device_page_create(&params);
-            if (device_page) {
-                lv_obj_t* dp_root = page_get_root(device_page);
-                lv_obj_set_parent(dp_root, tile);
-                lv_obj_set_style_pad_all(dp_root, 0, LV_PART_MAIN);
-                lv_obj_set_style_border_width(dp_root, 0, LV_PART_MAIN);
-                lv_obj_set_style_radius(dp_root, 0, LV_PART_MAIN);
-                lv_obj_clear_flag(dp_root, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_add_flag(dp_root, LV_OBJ_FLAG_EVENT_BUBBLE);
-                d->device_pages[d->device_count] = device_page;
-                d->device_ids[d->device_count]   = b->id;
-                d->device_count++;
-            }
+            append_device_page(d, models[i]);
         }
         break;
     }
-    case MSG_BIZ_REFRESH_SYS:
+    case MSG_DEV_REFRESH_SYS:
         settings_page_refresh(d->settings_cont);
         break;
-    default: break;
+    default:
+        break;
     }
 }
 
 /* ────────────────────────────────────────────────────────────────
  * 触摸事件：跟手拖拽 + 松手弹出/弹回
- *
- * 注册在 settings_cont 上（settings_cont 覆盖全屏，z-order 高于 tileview）。
- * IDLE 状态时 settings_cont 在屏幕上方（y=-SCREEN_H），但仍接收触摸事件，
- * 通过 LV_EVENT_PRESSING 的 EVENT_BUBBLE 从 tileview 冒泡上来。
- *
- * 解决冒泡：
- *   - settings_cont 自身接收 PRESSED/PRESSING/RELEASED（当它可见时手指直接按在它上面）
- *   - tileview 设置 LV_OBJ_FLAG_EVENT_BUBBLE，PRESSING 冒泡到 root，
- *     root 上的回调处理下拉识别
  * ─────────────────────────────────────────────────────────────── */
 
-/* 松手后的弹出/弹回判断 */
 static void do_snap(HomePageData* d)
 {
     int32_t cur_y = lv_obj_get_y(d->settings_cont);
-    /* cur_y 在 [-SCREEN_H, 0]，越大越靠近展开 */
     bool should_open = (cur_y > -SCREEN_H + PULL_THRESHOLD);
 
     if (should_open) {
@@ -199,7 +190,6 @@ static void do_snap(HomePageData* d)
     }
 }
 
-/* root 上的触摸回调（接收从 tileview 冒泡上来的事件） */
 static void on_root_touch(lv_event_t* e)
 {
     HomePageData* d    = lv_event_get_user_data(e);
@@ -224,28 +214,27 @@ static void on_root_touch(lv_event_t* e)
         int32_t dy = pt.y - d->touch_start_y;
 
         if (!d->drag_active && !d->locked_horiz) {
-            /* 判断主方向 */
             int32_t adx = dx < 0 ? -dx : dx;
             int32_t ady = dy < 0 ? -dy : dy;
 
             if (adx > VERT_DEAD_ZONE && adx > ady) {
-                /* 水平滑动，本次锁定为水平，不处理下拉 */
                 d->locked_horiz = true;
                 return;
             }
-            if (ady < VERT_DEAD_ZONE) return; /* 尚未确定方向 */
+            if (ady < VERT_DEAD_ZONE) return;
 
-            /* 确认为垂直拖拽，检查能否激活 */
             bool can_open  = (d->pull_state == PULL_STATE_IDLE)
                              && (dy > 0)
                              && (swipe_container_get_current(d->tileview) == 0);
             bool can_close = (d->pull_state == PULL_STATE_SETTINGS) && (dy < 0);
             if (!can_open && !can_close) {
-                d->locked_horiz = true; /* 不满足条件，本次忽略 */
+                d->locked_horiz = true;
                 return;
             }
             d->drag_active = true;
             d->pull_state  = PULL_STATE_DRAGGING;
+            /* 锁定 tileview 水平滚动，避免斜着拖时同时左右滑页 */
+            lv_obj_set_scroll_dir(d->tileview, LV_DIR_NONE);
         }
 
         if (!d->drag_active) return;
@@ -261,15 +250,15 @@ static void on_root_touch(lv_event_t* e)
         if (d->drag_active) {
             d->drag_active = false;
             do_snap(d);
+            /* 恢复 tileview 水平滑动 */
+            lv_obj_set_scroll_dir(d->tileview, LV_DIR_HOR);
         }
         return;
     }
 }
 
-/* settings_cont 自身也需要接收触摸（展开状态下手指直接按在它上面） */
 static void on_settings_touch(lv_event_t* e)
 {
-    /* 转发给 root 的 on_root_touch 逻辑（共用同一个 HomePageData） */
     on_root_touch(e);
 }
 
@@ -277,7 +266,6 @@ static void on_create(Page* page, void* params)
 {
     HomePageParams* p = (HomePageParams*)params;
     HomePageData* d   = calloc(1, sizeof(HomePageData));
-    d->bus        = p->bus;
     d->store      = p->store;
     d->pull_state = PULL_STATE_IDLE;
     page_set_user_data(page, d);
@@ -291,62 +279,41 @@ static void on_create(Page* page, void* params)
 
     d->tileview = swipe_container_create("tileview", root);
     lv_obj_set_size(d->tileview, SCREEN_W, SCREEN_H);
-    /* tileview 的触摸事件冒泡到 root，root 负责识别垂直下拉 */
     lv_obj_add_flag(d->tileview, LV_OBJ_FLAG_EVENT_BUBBLE);
 
-    /* settings_cont：初始置于屏幕上方，z-order 高于 tileview（后创建） */
-    SettingsPageParams sp = { .bus = d->bus, .store = d->store };
+    SettingsPageParams sp = { .store = d->store };
     d->settings_cont = settings_page_create(root, &sp);
     lv_obj_set_pos(d->settings_cont, 0, -SCREEN_H);
 
-    /* root 接收从 tileview 冒泡上来的触摸事件 */
     lv_obj_add_event_cb(root, on_root_touch, LV_EVENT_PRESSED,    d);
     lv_obj_add_event_cb(root, on_root_touch, LV_EVENT_PRESSING,   d);
     lv_obj_add_event_cb(root, on_root_touch, LV_EVENT_RELEASED,   d);
     lv_obj_add_event_cb(root, on_root_touch, LV_EVENT_PRESS_LOST, d);
 
-    /* settings_cont 展开时，手指直接按在它上面，也要处理上推返回 */
     lv_obj_add_event_cb(d->settings_cont, on_settings_touch, LV_EVENT_PRESSED,    d);
     lv_obj_add_event_cb(d->settings_cont, on_settings_touch, LV_EVENT_PRESSING,   d);
     lv_obj_add_event_cb(d->settings_cont, on_settings_touch, LV_EVENT_RELEASED,   d);
     lv_obj_add_event_cb(d->settings_cont, on_settings_touch, LV_EVENT_PRESS_LOST, d);
 
-    /* 初始化设备页 */
-    lv_device_base_t bases[LV_MAX_DEVICES];
-    int order[LV_MAX_DEVICES], count = 0;
-    lv_device_store_snapshot_base(d->store, bases, order, &count);
+    /* 初始化设备页（按显示顺序） */
+    void* models[MODEL_STORE_MAX];
+    int count = 0;
+    model_store_snapshot_ordered(d->store, models, &count);
     for (int i = 0; i < count; i++) {
-        lv_device_base_t* b = &bases[order[i]];
-        lv_obj_t* tile = swipe_container_add_page(d->tileview, i);
-        DevicePageParams dp = { .bus = d->bus, .store = d->store, .device_id = b->id };
-        Page* device_page = device_page_create(&dp);
-        if (device_page) {
-            lv_obj_t* dp_root = page_get_root(device_page);
-            lv_obj_set_parent(dp_root, tile);
-            lv_obj_set_style_pad_all(dp_root, 0, LV_PART_MAIN);
-            lv_obj_set_style_border_width(dp_root, 0, LV_PART_MAIN);
-            lv_obj_set_style_radius(dp_root, 0, LV_PART_MAIN);
-            lv_obj_clear_flag(dp_root, LV_OBJ_FLAG_HIDDEN);
-            /* 允许触摸事件冒泡到 tile → tileview → root */
-            lv_obj_add_flag(dp_root, LV_OBJ_FLAG_EVENT_BUBBLE);
-            d->device_pages[d->device_count] = device_page;
-            d->device_ids[d->device_count]   = b->id;
-            d->device_count++;
-        }
+        append_device_page(d, models[i]);
     }
 
-    app_bus_adapter_init(&g_app_bus_adapter, d->bus);
-    event_bus_subscribe(page, EVENT_APP_MESSAGE);
-    app_bus_adapter_start_auto_poll(&g_app_bus_adapter, 50);
-    app_bus_adapter_poll(&g_app_bus_adapter);
+    /* 订阅生命周期信号（object=NULL 全收） */
+    page_bind_slot(page, &g_ui_slot, MSG_DEV_ADD_MODEL,   NULL);
+    page_bind_slot(page, &g_ui_slot, MSG_DEV_DEL_MODEL,   NULL);
+    page_bind_slot(page, &g_ui_slot, MSG_DEV_MOVE_MODEL,  NULL);
+    page_bind_slot(page, &g_ui_slot, MSG_DEV_REFRESH_SYS, NULL);
 }
 
 static void on_destroy(Page* page)
 {
     HomePageData* d = page_get_user_data(page);
     if (d) {
-        event_bus_unsubscribe(page, EVENT_APP_MESSAGE);
-        app_bus_adapter_deinit(&g_app_bus_adapter);
         settings_page_destroy(d->settings_cont);
         for (int i = 0; i < d->device_count; i++) {
             if (d->device_pages[i]) { page_destroy(d->device_pages[i]); d->device_pages[i] = NULL; }
@@ -360,7 +327,7 @@ Page* home_page_creator(void* params)
     static PageLifecycle lc = {
         .on_create  = on_create,
         .on_destroy = on_destroy,
-        .on_event   = on_event,
+        .on_msg     = on_msg,
     };
     return page_create(&lc, params);
 }
@@ -370,10 +337,8 @@ void home_page_reset_to_first(Page* home_page)
     HomePageData* d = page_get_user_data(home_page);
     if (!d) return;
 
-    /* 关闭设置面板 */
     lv_obj_set_y(d->settings_cont, -SCREEN_H);
     d->pull_state = PULL_STATE_IDLE;
 
-    /* 切换到第一个设备页 */
     swipe_container_switch_to(d->tileview, 0);
 }

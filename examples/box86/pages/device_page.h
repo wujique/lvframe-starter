@@ -1,25 +1,30 @@
+/**
+ * @file         device_page.h
+ * @brief        设备页统一入口，按设备类型（普通灯/色温灯/电动窗帘）分发构建
+ *
+ * @author       pochard(email@xxx.com)
+ * @version      0.2
+ * @date         2026-08-15
+ * @copyright    Copyright (c) 2026..
+ */
 #ifndef DEVICE_PAGE_H
 #define DEVICE_PAGE_H
 
-/**
- * device_page — 设备页（普通灯 / 色温灯 / 电动窗帘）作为 Page 对象
- *
- * 创建参数：DevicePageParams*
- * 页面持有设备 id，通过快照读取数据，不持有模型指针。
- */
-
 #include "lvgl/lvgl.h"
-#include "../app_bus.h"
-#include "lvframe/device/lv_device_store.h"
+#include "models/model_store.h"
 #include "lvframe/page.h"
 
+/**
+ * @brief        设备页创建参数
+ */
 typedef struct {
-    AppBus*      bus;
-    lv_device_store_t* store;
-    int          device_id;
+    model_store_t* store;  /**< 模型仓库 */
+    void*          model;  /**< 目标模型指针（object）*/
 } DevicePageParams;
 
-/* 创建设备页 Page 对象 */
+/**
+ * @brief        创建设备页 Page 对象，根据设备类型自动分发构建逻辑
+ */
 Page* device_page_create(DevicePageParams* params);
 
 #endif /* DEVICE_PAGE_H */

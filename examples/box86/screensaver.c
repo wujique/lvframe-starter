@@ -1,20 +1,38 @@
+/**
+ * @file         screensaver.c
+ * @brief        屏保状态机实现，状态转换：NORMAL → SCREENSAVER → BLANK，
+ *               由 LVGL 定时器驱动，触摸或外部 wake 命令可唤醒
+ *
+ * @author       pochard(email@xxx.com)
+ * @version      0.1
+ * @date         2026-05-16
+ * @copyright    Copyright (c) 2026..
+ */
 #include "screensaver.h"
-#include "models/device_store.h"
+#include "models/model_store.h"
 #include "lvframe/page_manager.h"
 #include "pages/home_page.h"
 #include "lvgl/lvgl.h"
 
+/**
+ * @brief        屏保状态枚举
+ */
 typedef enum {
-    SA_STATE_NORMAL = 0,
-    SA_STATE_SCREENSAVER,
-    SA_STATE_BLANK,
+    SA_STATE_NORMAL      = 0, /**< 正常工作状态 */
+    SA_STATE_SCREENSAVER,     /**< 屏保播放中 */
+    SA_STATE_BLANK,           /**< 息屏（纯黑）状态 */
 } ScreensaverState;
 
-static lv_timer_t*        g_timer = NULL;
-static lv_device_store_t* g_store = NULL;
-static ScreensaverState   g_state = SA_STATE_NORMAL;
-static int                g_saver_ticks = 0;
+static lv_timer_t*        g_timer      = NULL;            /**< 1s 驱动定时器 */
+static model_store_t*     g_store      = NULL;            /**< 模型仓库（读取系统配置） */
+static ScreensaverState   g_state      = SA_STATE_NORMAL; /**< 当前状态 */
+static int                g_saver_ticks = 0;              /**< 屏保已运行的秒数 */
 
+/**
+ * @brief        从 NORMAL 状态进入屏保或直接息屏（取决于系统配置）
+ *
+ * @return       void
+ */
 static void enter_screensaver(void)
 {
     if (g_state != SA_STATE_NORMAL) return;
@@ -34,6 +52,11 @@ static void enter_screensaver(void)
     }
 }
 
+/**
+ * @brief        从 SCREENSAVER 状态进入息屏状态
+ *
+ * @return       void
+ */
 static void enter_blank(void)
 {
     if (g_state != SA_STATE_SCREENSAVER) return;
@@ -41,6 +64,12 @@ static void enter_blank(void)
     page_manager_open("BlankScreen", g_store);
 }
 
+/**
+ * @brief        1s 定时器回调，根据当前状态推进屏保状态机
+ *
+ * @param        timer                LVGL 定时器对象（未使用）
+ * @return       void
+ */
 static void saver_timer_cb(lv_timer_t* timer)
 {
     (void)timer;
@@ -68,7 +97,13 @@ static void saver_timer_cb(lv_timer_t* timer)
     }
 }
 
-void screensaver_init(lv_device_store_t* store)
+/**
+ * @brief        初始化屏保状态机，绑定设备仓库并创建 1s LVGL 定时器
+ *
+ * @param        store                设备数据仓库指针
+ * @return       void
+ */
+void screensaver_init(model_store_t* store)
 {
     g_store = store;
     g_state = SA_STATE_NORMAL;
@@ -78,6 +113,11 @@ void screensaver_init(lv_device_store_t* store)
     g_timer = lv_timer_create(saver_timer_cb, 1000, NULL);
 }
 
+/**
+ * @brief        唤醒屏保，根据 wake_action 配置决定回到首页或重进屏保
+ *
+ * @return       void
+ */
 void screensaver_wake(void)
 {
     if (g_state == SA_STATE_NORMAL) return;

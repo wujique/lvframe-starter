@@ -34,3 +34,6 @@ Thumbs.db
 
 # 日志
 *.log
+
+# AI 工具内部目录
+.opencode/

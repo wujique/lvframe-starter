@@ -100,10 +100,9 @@ set(LVGL_FREETYPE_SRCS
 add_library(lvframe STATIC
     ${ROOT_DIR}/lvframe/page.c
     ${ROOT_DIR}/lvframe/page_manager.c
-    ${ROOT_DIR}/lvframe/event_bus.c
+    ${ROOT_DIR}/lvframe/slot.c
     ${ROOT_DIR}/lvframe/swipe_container.c
     ${ROOT_DIR}/lvframe/impl/tileview_impl.c
-    ${ROOT_DIR}/lvframe/device/lv_device_store.c
 )
 target_include_directories(lvframe PUBLIC ${ROOT_DIR})
 target_link_libraries(lvframe PUBLIC lvgl)
@@ -111,8 +110,7 @@ target_link_libraries(lvframe PUBLIC lvgl)
 # ── box86 可执行文件 ──────────────────────────────────
 file(GLOB_RECURSE APP_SOURCES
     ${CMAKE_SOURCE_DIR}/main.c
-    ${CMAKE_SOURCE_DIR}/app_bus.c
-    ${CMAKE_SOURCE_DIR}/app_bus_adapter.c
+    ${CMAKE_SOURCE_DIR}/slots.c
     ${CMAKE_SOURCE_DIR}/business.c
     ${CMAKE_SOURCE_DIR}/pages/*.c
     ${CMAKE_SOURCE_DIR}/models/*.c

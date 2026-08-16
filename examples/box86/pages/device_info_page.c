@@ -1,17 +1,26 @@
 /**
- * device_info_page.c — 设备信息覆盖层
+ * @file         device_info_page.c
+ * @brief        设备信息覆盖层实现：附加在设备页 root 上的半透明信息卡片
  *
- * 实现为覆盖层（overlay），直接附加在设备页 root 上，
- * 而非独立的 Page，这样半透明背景可以透出底层设备页内容。
+ * @author       pochard(email@xxx.com)
+ * @version      0.1
+ * @date         2026-05-16
+ * @copyright    Copyright (c) 2026..
  */
 
 #include "device_info_page.h"
-#include "models/device_store.h"
+#include "models/model_store.h"
 #include "models/device_model.h"
 #include <string.h>
 #include <stdio.h>
 
 /* ── 点击覆盖层任意位置关闭 ── */
+/**
+ * @brief        覆盖层点击回调，删除 overlay 对象回到设备页
+ *
+ * @param        e                    LVGL 事件
+ * @return       void
+ */
 static void on_overlay_clicked(lv_event_t* e)
 {
     lv_obj_t* overlay = (lv_obj_t*)lv_event_get_user_data(e);
@@ -19,7 +28,15 @@ static void on_overlay_clicked(lv_event_t* e)
     lv_obj_delete(overlay);
 }
 
-void device_info_overlay_open(lv_obj_t* parent, lv_device_store_t* store, int device_id)
+/**
+ * @brief        在 parent 上创建设备信息覆盖层（半透明遮罩 + 信息卡片）
+ *
+ * @param        parent               设备页根容器
+ * @param        store                设备数据仓库
+ * @param        device_id            目标设备 ID
+ * @return       void
+ */
+void device_info_overlay_open(lv_obj_t* parent, model_store_t* store, void* model)
 {
     /* ── 全屏半透明覆盖层，附加在 parent（设备页 root）上 ── */
     lv_obj_t* overlay = lv_obj_create(parent);
@@ -72,13 +89,13 @@ void device_info_overlay_open(lv_obj_t* parent, lv_device_store_t* store, int de
     char loc_str[64]  = "未设置";
 
     box86_light_model_t snap;
-    if (box86_store_snapshot_light(store, device_id, &snap) == 0) {
+    if (box86_store_snapshot_light(store, model, &snap) == 0) {
         snprintf(id_str,   sizeof(id_str),   "%d", snap.base.id);
         snprintf(name_str, sizeof(name_str), "%s", snap.base.name);
         switch (snap.base.type) {
-            case BOX86_DEVICE_TYPE_LIGHT:   snprintf(type_str, sizeof(type_str), "普通灯");   break;
-            case BOX86_DEVICE_TYPE_CCT:     snprintf(type_str, sizeof(type_str), "色温灯");   break;
-            case BOX86_DEVICE_TYPE_CURTAIN: snprintf(type_str, sizeof(type_str), "电动窗帘"); break;
+            case MODEL_TYPE_LIGHT:   snprintf(type_str, sizeof(type_str), "普通灯");   break;
+            case MODEL_TYPE_CCT:     snprintf(type_str, sizeof(type_str), "色温灯");   break;
+            case MODEL_TYPE_CURTAIN: snprintf(type_str, sizeof(type_str), "电动窗帘"); break;
             default: snprintf(type_str, sizeof(type_str), "未知"); break;
         }
     }

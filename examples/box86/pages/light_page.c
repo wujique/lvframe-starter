@@ -1,13 +1,17 @@
 /**
- * light_page.c — 普通灯设备页
+ * @file         light_page.c
+ * @brief        普通灯设备页：静态彩虹边框 + 流水灯动画 + 开关控制
  *
- * 功能：
- *   1. 静态彩虹边框：页面四周 10px，颜色按周长位置映射 HSV 色相（0→360）
- *   2. 流水灯动画：点击开/关按钮时，彩虹色相绕页面旋转一圈（约 800ms）
+ * @author       pochard(email@xxx.com)
+ * @version      0.1
+ * @date         2026-05-16
+ * @copyright    Copyright (c) 2026..
  */
 
 #include "device_page_internal.h"
 #include "device_info_page.h"
+#include "msg.h"
+#include "slots.h"
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -19,6 +23,14 @@
 #define ANIM_TICKS    (ANIM_TOTAL_MS / ANIM_TICK_MS)   /* 总帧数 ≈ 50 */
 
 /* ── HSV → lv_color_t（LVGL 9 内置 lv_color_hsv_to_rgb，但此处手写以免依赖） ── */
+/**
+ * @brief        HSV 转 lv_color_t
+ *
+ * @param        h                    色相 (0-359)
+ * @param        s                    饱和度 (0-255)
+ * @param        v                    明度 (0-255)
+ * @return       lv_color_t 
+ */
 static lv_color_t hsv_to_color(int h, int s, int v)
 {
     /* h: 0-359, s: 0-255, v: 0-255 */
@@ -31,6 +43,14 @@ static lv_color_t hsv_to_color(int h, int s, int v)
  * hue_offset: 动画偏移量
  * 返回 0~359
  */
+/**
+ * @brief        根据周长位置计算彩虹色相（含动画偏移）
+ *
+ * @param        perimeter_pos        当前像素在周长上的位置（0 ~ perimeter-1）
+ * @param        perimeter            总周长像素数
+ * @param        hue_offset           动画色相偏移量
+ * @return       int 色相值 (0~359)
+ */
 static int border_hue(int perimeter_pos, int perimeter, int hue_offset)
 {
     int h = (int)(360LL * perimeter_pos / perimeter) + hue_offset;
@@ -38,6 +58,12 @@ static int border_hue(int perimeter_pos, int perimeter, int hue_offset)
 }
 
 /* ── 绘制边框到 canvas ── */
+/**
+ * @brief        将彩虹边框绘制到 canvas 缓冲
+ *
+ * @param        d                    设备页共享数据（含 border_canvas/border_hue_off）
+ * @return       void
+ */
 static void draw_border(DevicePageData* d)
 {
     lv_obj_t* canvas = d->border_canvas;
@@ -98,6 +124,12 @@ static void draw_border(DevicePageData* d)
 }
 
 /* ── 动画定时器回调 ── */
+/**
+ * @brief        边框动画定时器回调，每帧推进色相偏移并重绘
+ *
+ * @param        timer                LVGL 定时器句柄
+ * @return       void
+ */
 static void border_anim_timer_cb(lv_timer_t* timer)
 {
     DevicePageData* d = lv_timer_get_user_data(timer);
@@ -113,43 +145,68 @@ static void border_anim_timer_cb(lv_timer_t* timer)
 }
 
 /* ── 触发流水灯动画 ── */
+/**
+ * @brief        触发流水灯旋转动画（重置帧计数器）
+ *
+ * @param        d                    设备页共享数据
+ * @return       void
+ */
 static void start_border_anim(DevicePageData* d)
 {
     d->border_anim_ticks = ANIM_TICKS;
 }
 
 /* ── 设备信息按钮回调 ── */
+/**
+ * @brief        设备信息按钮点击回调，打开设备信息覆盖层
+ *
+ * @param        e                    LVGL 事件
+ * @return       void
+ */
 static void on_device_info(lv_event_t* e)
 {
     DevicePageData* d = lv_event_get_user_data(e);
     if (!d) return;
 
     lv_obj_t* root = lv_obj_get_parent(d->btn_toggle);
-    device_info_overlay_open(root, d->store, d->device_id);
+    device_info_overlay_open(root, d->store, d->model);
 }
 
 /* ── 开关按钮回调 ── */
+/**
+ * @brief        开关按钮点击回调，发送 set_prop 消息并触发边框动画
+ *
+ * @param        e                    LVGL 事件
+ * @return       void
+ */
 static void on_toggle(lv_event_t* e)
 {
     DevicePageData* d = lv_event_get_user_data(e);
     if (!d) return;
 
     box86_light_model_t snap;
-    if (box86_store_snapshot_light(d->store, d->device_id, &snap) < 0) return;
+    if (box86_store_snapshot_light(d->store, d->model, &snap) < 0) return;
 
-    AppMsg msg;
+    lv_slot_msg_t msg;
     memset(&msg, 0, sizeof(msg));
-    msg.type      = MSG_UI_SET_PROP;
-    msg.device_id = d->device_id;
-    msg.value     = snap.onoffsta ? 0 : 1;
+    msg.signal = MSG_UI_SET_PROP;
+    msg.object = d->model;
+    msg.arg0   = snap.onoffsta ? 0 : 1;
     strncpy(msg.field, "onoffsta", sizeof(msg.field) - 1);
-    app_bus_send_ui(d->bus, &msg);
+    lv_slot_send(&g_dev_slot, &msg);
 
     /* 触发流水灯旋转 */
     start_border_anim(d);
 }
 
 /* ── 构建页面 ── */
+/**
+ * @brief        构建普通灯设备页 UI 及彩虹边框 canvas
+ *
+ * @param        root                 页面根容器
+ * @param        d                    设备页共享数据
+ * @return       void
+ */
 void light_page_build(lv_obj_t* root, DevicePageData* d)
 {
     lv_obj_set_size(root, LV_PCT(100), LV_PCT(100));
@@ -215,15 +272,27 @@ void light_page_build(lv_obj_t* root, DevicePageData* d)
 }
 
 /* ── 刷新页面数据 ── */
+/**
+ * @brief        刷新普通灯设备页数据（名称/开关状态）
+ *
+ * @param        d                    设备页共享数据
+ * @return       void
+ */
 void light_page_refresh(DevicePageData* d)
 {
     box86_light_model_t snap;
-    if (box86_store_snapshot_light(d->store, d->device_id, &snap) < 0) return;
+    if (box86_store_snapshot_light(d->store, d->model, &snap) < 0) return;
     lv_label_set_text(d->lbl_name, snap.base.name);
     lv_label_set_text(d->lbl_status, snap.onoffsta ? "已开启" : "已关闭");
 }
 
 /* ── 销毁时清理资源 ── */
+/**
+ * @brief        销毁普通灯设备页，释放定时器和绘图缓冲
+ *
+ * @param        d                    设备页共享数据
+ * @return       void
+ */
 void light_page_destroy(DevicePageData* d)
 {
     if (d->border_timer) {

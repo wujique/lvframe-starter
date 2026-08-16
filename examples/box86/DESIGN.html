@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>box86 工程设计文档（v2 · 消息槽）</title>
+<style>
+:root{
+  --bg:#f5f6f8; --card:#ffffff; --text:#2b2f36; --muted:#6b7280;
+  --accent:#1a73e8; --accent-dark:#1558b0; --border:#e3e6ea;
+  --code-bg:#1e2430; --code-text:#d6dae3; --quote-bg:#eef4fd; --quote-border:#1a73e8;
+  --green:#1e8e3e; --amber:#f5a623;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  line-height:1.75;font-size:15px}
+.container{max-width:1000px;margin:0 auto;padding:0 24px}
+header{background:linear-gradient(135deg,#0f3d8c 0%,#1a73e8 100%);color:#fff;padding:48px 0 40px}
+header h1{margin:0 0 8px;font-size:28px;font-weight:700;letter-spacing:.5px}
+header p.sub{margin:0;opacity:.85;font-size:15px}
+.meta{display:flex;flex-wrap:wrap;gap:8px 24px;margin-top:18px;font-size:13px;opacity:.9}
+.meta span{white-space:nowrap}
+nav.toc{background:var(--card);border:1px solid var(--border);border-radius:10px;
+  margin:28px 0;padding:18px 24px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+nav.toc h2{margin:0 0 10px;font-size:15px;color:var(--muted);font-weight:600}
+nav.toc ol{margin:0;padding-left:22px;columns:2;column-gap:40px}
+nav.toc li{margin:3px 0}
+nav.toc a{color:var(--accent);text-decoration:none}
+nav.toc a:hover{text-decoration:underline}
+h2{border-bottom:2px solid var(--border);padding-bottom:8px;margin:44px 0 18px;font-size:22px}
+h2 .no{display:inline-block;background:var(--accent);color:#fff;border-radius:6px;
+  font-size:14px;padding:2px 10px;margin-right:10px;vertical-align:3px}
+h3{margin:30px 0 12px;font-size:17px;color:var(--accent-dark)}
+h4{margin:22px 0 8px;font-size:15px}
+p{margin:10px 0}
+ul,ol{margin:10px 0;padding-left:24px}
+li{margin:4px 0}
+strong{color:var(--accent-dark)}
+a{color:var(--accent)}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px;
+  background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:#eef2f7;font-weight:600;white-space:nowrap}
+tr:nth-child(even) td{background:#fafbfc}
+pre{background:var(--code-bg);color:var(--code-text);border-radius:8px;padding:14px 16px;
+  overflow-x:auto;font-size:13px;line-height:1.6;margin:12px 0;
+  font-family:Consolas,"SF Mono",Menlo,Monaco,"Courier New",monospace}
+code{font-family:Consolas,"SF Mono",Menlo,Monaco,"Courier New",monospace;
+  background:#eef1f5;color:#c7254e;border-radius:4px;padding:1px 5px;font-size:13px}
+pre code{background:none;color:inherit;padding:0;font-size:13px}
+blockquote{margin:14px 0;padding:10px 16px;background:var(--quote-bg);
+  border-left:4px solid var(--quote-border);border-radius:0 8px 8px 0;color:#33475c}
+blockquote p{margin:4px 0}
+.diagram{font-family:Consolas,Menlo,monospace;font-size:13px;line-height:1.5;
+  background:#0f172a;color:#a5b4fc;border-radius:8px;padding:16px;overflow-x:auto;margin:12px 0}
+.ok{color:var(--green);font-weight:700}
+.warn{background:#fff7e6;border-left:4px solid var(--amber);padding:10px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+.warn p{margin:4px 0}
+.note{font-size:13px;color:var(--muted)}
+figure{background:#fff;border:1px solid var(--border);border-radius:12px;
+  padding:16px 16px 10px;margin:20px 0;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+figure figcaption{text-align:center;font-size:13px;color:var(--muted);margin-top:8px}
+svg.fig{width:100%;height:auto;display:block;font-family:inherit}
+svg.fig text{font-family:inherit}
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;background:#fff;
+  border:1px solid var(--border);border-radius:10px;padding:14px;margin:12px 0}
+.flow .fstep{background:#eef4fd;border:1px solid #c5d8f5;border-radius:8px;
+  padding:8px 10px;font-size:13px;flex:1;min-width:130px}
+.flow .fstep.gray{background:#f8fafc;border-color:#dbe2ea}
+.flow .fstep.orange{background:#fff7ed;border-color:#fed7aa}
+.flow .fstep.green{background:#f0fdf4;border-color:#bbf7d0}
+.fn{display:inline-block;background:var(--accent);color:#fff;border-radius:50%;
+  width:20px;height:20px;line-height:20px;text-align:center;font-size:11px;margin-right:6px;flex-shrink:0}
+.farrow{display:flex;align-items:center;color:#94a3b8;font-size:18px;font-weight:700;flex-shrink:0}
+@media(max-width:820px){.farrow{transform:rotate(90deg)}}
+footer{margin:60px 0 40px;padding-top:16px;border-top:1px solid var(--border);
+  color:var(--muted);font-size:13px}
+@media(max-width:720px){nav.toc ol{columns:1}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <h1>box86 工程设计文档 v2</h1>
+    <p class="sub">智能家居中控屏 UI 应用 · LVGL 9.4 + lvframe v0.2（消息槽）</p>
+    <div class="meta">
+      <span>文档类型：工程详细设计（v2 修订）</span>
+      <span>平台：SDL 模拟器 / RK3506 Linux</span>
+      <span>最后更新：2026-08-15</span>
+      <span>状态：修订中（方案未定 · 禁止修改代码）</span>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+<nav class="toc">
+  <h2>目录</h2>
+  <ol>
+    <li><a href="#overview">概述</a></li>
+    <li><a href="#screen">屏幕规格</a></li>
+    <li><a href="#pages">页面结构</a></li>
+    <li><a href="#page-detail">各页面设计</a></li>
+    <li><a href="#model">数据模型（通用模型层）</a></li>
+    <li><a href="#msg">消息定义（信号化双槽）</a></li>
+    <li><a href="#shell">Shell 命令行接口</a></li>
+    <li><a href="#screensaver">屏保功能</a></li>
+    <li><a href="#thread">线程架构与业务交互</a></li>
+    <li><a href="#resources">资源清单</a></li>
+    <li><a href="#freetype">字体引擎评估：FreeType vs TinyTTF</a></li>
+  </ol>
+</nav>
+
+<h2 id="overview"><span class="no">1</span>概述</h2>
+<p>本工程是一个智能家居中控屏的 UI 应用程序，基于 LVGL 9.4 和 lvframe v0.2 页面管理框架开发。</p>
+<ul>
+  <li><strong>UI 渲染</strong>：基于 lvframe 的多页面管理，支持左右滑动切换设备页、下拉进入设置页等交互</li>
+  <li><strong>业务逻辑</strong>：通用数据模型管理（设备 + 虚拟模型），支持通过 Shell 命令行与 UI 双向联动</li>
+  <li><strong>UI 与业务交互</strong>：LVGL 与业务逻辑运行在各自独立的线程中，通过 <strong>两个消息槽</strong>（g_ui_slot / g_dev_slot）解耦通信；消息按<strong>信号（signal）+ 对象（object）</strong>分发，object 为<strong>数据模型指针</strong>（NULL=广播），由槽在分发时匹配</li>
+</ul>
+<p><strong>线程与数据安全总则</strong>（详见<a href="#thread">线程架构与业务交互</a>）：</p>
+<ul>
+  <li>UI 操作（点击开关等）构造消息 → 发送到 g_dev_slot → DEV 线程消费并修改数据模型 → Shell 输出日志</li>
+  <li>Shell 指令由 DEV 线程解析，修改模型后按信号经 g_ui_slot 通知 UI（object = 模型指针）</li>
+  <li>添加/删除模型需严格管理生命周期：<strong>删除必须先销毁 UI 页面，再释放数据模型</strong>（DEL → UI 销毁 → DEL_ACK → DEV 释放）</li>
+  <li>UI 页面通过 <code>page_bind_slot(page, slot, signal, object)</code> 按信号 + 对象订阅，object 由槽匹配；数据读取走仓库快照接口；DEV 线程是数据模型唯一所有者</li>
+</ul>
+<p class="note">本文档依据 v2 设计编写（动态节点槽、signal + object 匹配、payload 由槽释放），方案未定，代码待审核通过后实施。与旧版（event_bus + app_bus）设计不同，详见<a href="../../lvframe/设计文档.html">lvframe 框架设计文档 v2</a>。</p>
+
+<h2 id="screen"><span class="no">2</span>屏幕规格</h2>
+<table>
+  <tr><th>参数</th><th>值</th></tr>
+  <tr><td>分辨率</td><td>480 × 480</td></tr>
+  <tr><td>色深</td><td>16bit</td></tr>
+  <tr><td>触摸类型</td><td>电容屏</td></tr>
+</table>
+
+<h2 id="pages"><span class="no">3</span>页面结构</h2>
+<div class="diagram">
+┌──────────────────────────────────────────┐
+│           设备页（主页面区域）              │
+│   [设备页1] ←─ 左右滑动 ─→ [设备页N]      │
+│   普通灯 / 色温灯 / 电动窗帘，支持多实例    │
+│   （普通灯可点击"信息"进入设备信息覆盖层）   │
+└─────────────────┬────────────────────────┘
+                  │ 仅第一页支持下拉
+                  ▼
+┌──────────────────────────────────────────┐
+│                 设置页                    │
+│        [网络开关]    [更多设置]            │
+└─────────────────┬────────────────────────┘
+                  │ 上拉返回首页
+                  │ 点击"更多设置"
+                  ▼
+┌──────────────────────────────────────────┐
+│              更多设置页                   │
+│   [屏保设置]  [待机时间]  [维持时间] ...    │
+│   [唤醒行为]                              │
+└──────────────────────────────────────────┘
+
+屏保/息屏页面（由屏保状态机驱动，直接覆盖当前页面）：
+┌─────────────┐   ┌─────────────┐
+│  屏保页      │   │  息屏页      │
+│  "屏保"      │   │  "息屏"      │
+└─────────────┘   └─────────────┘
+</div>
+<p>页面注册（main.c）：<code>Home</code>、<code>MoreSettings</code>、<code>Screensaver</code>、<code>BlankScreen</code>；设备页由首页按 ADD_MODEL 消息动态创建，不占用注册表。</p>
+
+<h2 id="page-detail"><span class="no">4</span>各页面设计</h2>
+
+<h3>4.1 设备页 — 普通灯（light_page.c）</h3>
+<table>
+  <tr><th>元素</th><th>类型</th><th>说明</th></tr>
+  <tr><td>设备名称</td><td>Label</td><td>显示设备名称</td></tr>
+  <tr><td>开关按钮</td><td>Button</td><td>点击发送 SET_PROP（object=灯模型）</td></tr>
+  <tr><td>状态 Label</td><td>Label</td><td>显示当前状态（"已开启" / "已关闭"）</td></tr>
+  <tr><td>设备信息入口</td><td>Button</td><td>进入设备信息覆盖层（与 tile 页绑定同一模型指针）</td></tr>
+</table>
+
+<h3>4.2 设备页 — 色温灯（cct_light_page.c）</h3>
+<table>
+  <tr><th>元素</th><th>类型</th><th>说明</th></tr>
+  <tr><td>设备名称</td><td>Label</td><td>显示设备名称</td></tr>
+  <tr><td>开关按钮</td><td>Button</td><td>点击切换开/关状态</td></tr>
+  <tr><td>状态 Label</td><td>Label</td><td>显示当前状态</td></tr>
+  <tr><td>色温滑动条</td><td>Slider</td><td>调节色温，范围 2700K ~ 6500K</td></tr>
+  <tr><td>色温值 Label</td><td>Label</td><td>实时显示当前色温值（如"4000K"）</td></tr>
+</table>
+
+<h3>4.3 设备页 — 电动窗帘（curtain_page.c）</h3>
+<table>
+  <tr><th>元素</th><th>类型</th><th>说明</th></tr>
+  <tr><td>设备名称</td><td>Label</td><td>显示设备名称</td></tr>
+  <tr><td>打开/关闭/停止按钮</td><td>Button</td><td>发送 OPEN / CLOSE / STOP 指令</td></tr>
+  <tr><td>开合度 Label</td><td>Label</td><td>显示当前开合度（如"75%"）</td></tr>
+</table>
+
+<h3>4.4 设备页分发与绑定（device_page.c）</h3>
+<p>设备页是首页内动态创建的子 Page：创建时通过 ADD_MODEL 消息获得 <code>object = 模型指针</code>；<code>page_bind_slot</code> 按信号 + 对象订阅（灯页：LIGHT_ON/LIGHT_OFF；色温灯页追加 CCT_TEMP；窗帘页：CURTAIN_POS；object 均为该模型指针）；on_msg 收到的是已按 object 过滤的消息，按 <code>msg-&gt;signal</code> 路由到对应刷新逻辑。一个模型的 tile 页与信息浮层订阅同一信号、绑定同一 object，同一条信号同时命中两个回调。页面的增删（ADD/DEL）由 Home 页以 object=NULL 订阅并统一管理。</p>
+
+<h3>4.5 设置页（settings_page.c，内嵌面板，非 Page）</h3>
+<table>
+  <tr><th>元素</th><th>类型</th><th>说明</th></tr>
+  <tr><td>网络开关按钮</td><td>Button</td><td>点击发送 SET_SYSTEM（object=SYSTEM 模型）；开启时按钮为金黄色</td></tr>
+  <tr><td>更多设置按钮</td><td>Button</td><td>点击进入更多设置页</td></tr>
+</table>
+<p>设置面板刷新由 home（订阅 REFRESH_SYS，object=NULL）收到后调用 settings_page_refresh 驱动，无需自身订阅。</p>
+
+<h3>4.6 更多设置页（more_settings_page.c）</h3>
+<table>
+  <tr><th>元素</th><th>类型</th><th>说明</th></tr>
+  <tr><td>返回按钮</td><td>Button</td><td>左上角，返回设置页</td></tr>
+  <tr><td>屏保开关</td><td>Button</td><td>点击切换屏保开/关</td></tr>
+  <tr><td>待机时间</td><td>Slider + Label</td><td>5~60s，步进 5，默认 10</td></tr>
+  <tr><td>屏保维持时间</td><td>Slider + Label</td><td>5~60s，步进 5，默认 20</td></tr>
+  <tr><td>唤醒行为</td><td>Button</td><td>点击切换"返回屏保" / "返回首页"</td></tr>
+</table>
+<p>更多设置页订阅 <code>MSG_DEV_REFRESH_SYS</code>，收到后从 SYSTEM 模型快照刷新滑块/按钮状态。</p>
+
+<h3>4.7 屏保页 / 息屏页（screensaver_page.c / blank_page.c）</h3>
+<table>
+  <tr><th>页面</th><th>元素</th><th>说明</th></tr>
+  <tr><td>屏保页</td><td>全屏黑背景 + 居中文字"屏保"</td><td>覆盖当前页面，触摸退出返回原页面</td></tr>
+  <tr><td>息屏页</td><td>全屏黑背景 + 居中文字"息屏"</td><td>消费 LV_EVENT_CLICKED（不冒泡），由 screensaver_wake 统一处理唤醒</td></tr>
+</table>
+
+<h3>4.8 音量设置页 / 屏幕设置页</h3>
+<p class="note">暂未实现（后续可作为绑定 SYSTEM 模型的新页面或面板扩展）。</p>
+
+<h2 id="model"><span class="no">5</span>数据模型（通用模型层）</h2>
+<p>模型层位于 <code>models/</code>，<strong>应用层所有，与 lvframe 无关，与 UI 无关</strong>。设备（灯/色温灯/窗帘）与虚拟抽象（系统设置）统一为模型。</p>
+
+<h3>5.1 通用模型头（model_base.h）</h3>
+<pre>
+typedef struct {
+    int   id;          /* 唯一 ID：设备从 1 递增；SYSTEM = 0 */
+    int   type;        /* 模型类型 */
+    char  name[32];    /* 名称 */
+    int   ref_count;   /* 被 UI 绑定数（诊断）*/
+    int   valid;       /* 1 有效 / 0 已标记删除 */
+} model_base_t;        /* 具体模型以它为首成员 */
+
+typedef enum {
+    MODEL_TYPE_LIGHT = 0, MODEL_TYPE_CCT, MODEL_TYPE_CURTAIN,
+    MODEL_TYPE_SYSTEM,     /* 虚拟模型：亮度/音量/网络/屏保配置 */
+    MODEL_TYPE_COUNT
+} box86_model_type_t;
+</pre>
+
+<h3>5.2 具体模型（device_model.h）</h3>
+<table>
+  <tr><th>模型</th><th>字段</th><th>说明</th></tr>
+  <tr><td>普通灯 box86_light_model_t</td><td>base + onoffsta</td><td>开关状态</td></tr>
+  <tr><td>色温灯 box86_cct_light_model_t</td><td>base + onoffsta + color_temp</td><td>色温 2700~6500K，默认 4000</td></tr>
+  <tr><td>窗帘 box86_curtain_model_t</td><td>base + position + command</td><td>开合度 0~100；指令 NONE/OPEN/CLOSE/STOP</td></tr>
+  <tr><td>系统 box86_system_model_t（虚拟）</td><td>brightness / volume / network_enabled / screensaver_enabled / screensaver_timeout / screensaver_duration / wake_action</td><td>id=0，type=SYSTEM，常驻仓库</td></tr>
+</table>
+
+<h3>5.3 通用仓库（model_store.h/c）</h3>
+<pre>
+typedef struct {
+    void*      models[MODEL_STORE_MAX];
+    int        count;
+    int        order[MODEL_STORE_MAX];   /* 显示顺序（设备模型参与）*/
+    lv_mutex_t mutex;
+} model_store_t;
+
+int  model_store_add(model_store_t* s, void* model);     /* DEV：分配 id 入库 */
+int  model_store_del(model_store_t* s, void* model);     /* DEV：UI 确认后释放 */
+int  model_store_move(model_store_t* s, void* model, int new_pos);
+int  model_store_snapshot_base(model_store_t* s, void* model, model_base_t* out);
+int  box86_store_snapshot_light/cct/curtain/system(...); /* 类型化快照，锁内拷贝 */
+/* 属性写入（DEV）：box86_store_set_light_prop / set_cct_prop / set_curtain_prop / set_system */
+</pre>
+
+<h2 id="msg"><span class="no">6</span>消息定义（信号化双槽）</h2>
+<p>消息枚举由应用定义（<code>msg.h</code>），框架不做任何限制；<strong>一个数据模型可细分多个信号</strong>（如灯：开灯 / 关灯）。槽按 signal + object 分发（object=NULL 双向通配），object（模型指针）由槽匹配。</p>
+<pre>
+typedef enum {
+    /* → g_dev_slot（DEV 线程消费）*/
+    MSG_UI_SET_PROP,     /* object=模型, field=属性名, arg0=新值 */
+    MSG_UI_SET_SYSTEM,   /* object=SYSTEM 模型, field=字段, arg0=新值 */
+    MSG_UI_DEL_ACK,      /* object=模型（UI 已销毁页面，可释放）*/
+
+    /* → g_ui_slot（UI 线程消费）：设备信号 */
+    MSG_DEV_LIGHT_ON,        /* object=灯模型：灯打开 */
+    MSG_DEV_LIGHT_OFF,       /* object=灯模型：灯关闭 */
+    MSG_DEV_CCT_TEMP,        /* object=色温灯模型：色温变化 */
+    MSG_DEV_CURTAIN_POS,     /* object=窗帘模型：开合度变化 */
+    MSG_DEV_ALL_LIGHTS_OFF,  /* object=NULL：全屋断电广播（信号级广播示例）*/
+
+    /* → g_ui_slot：生命周期 */
+    MSG_DEV_ADD_MODEL,   /* object=模型（创建页面并绑定）*/
+    MSG_DEV_DEL_MODEL,   /* object=模型（销毁绑定页面）*/
+    MSG_DEV_MOVE_MODEL,  /* object=模型, arg0=new_pos */
+    MSG_DEV_REFRESH_SYS, /* object=SYSTEM 模型 */
+} box86_msg_type_t;
+
+extern lv_slot_t g_ui_slot;    /* DEV → UI；UI 线程 50ms 定时器消费 */
+extern lv_slot_t g_dev_slot;   /* UI → DEV；DEV 线程 wait+process 消费 */
+</pre>
+
+<h3>6.1 页面订阅模式</h3>
+<table>
+  <tr><th>订阅者</th><th>订阅 (signal, object)（page_bind_slot 多次调用）</th><th>object</th></tr>
+  <tr><td>Home 页</td><td><code>ADD_MODEL / DEL_MODEL / MOVE_MODEL / REFRESH_SYS</code></td><td>NULL（全收，处理生命周期）</td></tr>
+  <tr><td>灯页</td><td><code>MSG_DEV_LIGHT_ON</code>、<code>MSG_DEV_LIGHT_OFF</code></td><td>该灯模型指针</td></tr>
+  <tr><td>色温灯页</td><td><code>LIGHT_ON/OFF</code>、<code>MSG_DEV_CCT_TEMP</code></td><td>该色温灯模型指针</td></tr>
+  <tr><td>窗帘页</td><td><code>MSG_DEV_CURTAIN_POS</code></td><td>该窗帘模型指针</td></tr>
+  <tr><td>更多设置页</td><td><code>MSG_DEV_REFRESH_SYS</code></td><td>NULL（SYSTEM 模型快照刷新）</td></tr>
+</table>
+
+<h2 id="shell"><span class="no">7</span>Shell 命令行接口</h2>
+<p>命令由<strong>DEV 线程</strong>实时解析（select 非阻塞读 stdin，同线程直接处理，无需过槽）；模型变更后按信号经 g_ui_slot 通知 UI。语法：<code>&lt;动作&gt; &lt;目标&gt; [参数...]</code></p>
+
+<h3>7.1 模型管理命令</h3>
+<table>
+  <tr><th>命令</th><th>说明</th><th>示例</th></tr>
+  <tr><td><code>add light|cct_light|curtain &lt;name&gt;</code></td><td>添加设备模型</td><td><code>add light 客厅灯</code></td></tr>
+  <tr><td><code>del &lt;id&gt;</code></td><td>删除模型（UI 销毁页面并确认后释放）</td><td><code>del 2</code></td></tr>
+  <tr><td><code>list</code></td><td>列出所有模型及其 ID/类型/状态</td><td><code>list</code></td></tr>
+  <tr><td><code>move &lt;id&gt; &lt;position&gt;</code></td><td>调整设备页顺序（position 从 0 开始）</td><td><code>move 3 0</code></td></tr>
+</table>
+
+<h3>7.2 模型控制命令</h3>
+<table>
+  <tr><th>命令</th><th>说明</th><th>示例</th></tr>
+  <tr><td><code>set &lt;id&gt; onoffsta &lt;0|1&gt;</code></td><td>设置开关状态</td><td><code>set 1 onoffsta 1</code></td></tr>
+  <tr><td><code>set &lt;id&gt; color_temp &lt;value&gt;</code></td><td>设置色温（2700~6500）</td><td><code>set 2 color_temp 4000</code></td></tr>
+  <tr><td><code>set &lt;id&gt; position &lt;value&gt;</code></td><td>设置窗帘开合度（0~100）</td><td><code>set 3 position 75</code></td></tr>
+  <tr><td><code>set &lt;id&gt; command &lt;OPEN|CLOSE|STOP&gt;</code></td><td>发送窗帘指令</td><td><code>set 3 command OPEN</code></td></tr>
+  <tr><td><code>get &lt;id&gt;</code> / <code>get system</code></td><td>查询模型状态</td><td><code>get 1</code></td></tr>
+</table>
+
+<h3>7.3 系统控制命令</h3>
+<table>
+  <tr><th>命令</th><th>说明</th><th>示例</th></tr>
+  <tr><td><code>set system brightness|volume|network ...</code></td><td>亮度/音量/网络开关</td><td><code>set system network 1</code></td></tr>
+  <tr><td><code>set system screensaver &lt;0|1&gt;</code></td><td>开关屏保</td><td><code>set system screensaver 0</code></td></tr>
+  <tr><td><code>set system sa_timeout / sa_duration / wake_action</code></td><td>待机/维持/唤醒行为</td><td><code>set system wake_action 1</code></td></tr>
+  <tr><td><code>wake</code></td><td>模拟触摸唤醒（调用 screensaver_wake）</td><td><code>wake</code></td></tr>
+</table>
+
+<h3>7.4 UI → Shell 输出格式</h3>
+<pre>[UI] set &lt;id&gt; &lt;field&gt; &lt;value&gt;
+[UI] set system &lt;field&gt; &lt;value&gt;</pre>
+<p>示例：<code>[UI] set 1 onoffsta 1</code> · <code>[UI] set 2 color_temp 3500</code> · <code>[UI] set system network 0</code></p>
+
+<h2 id="screensaver"><span class="no">8</span>屏保功能</h2>
+
+<h3>8.1 设计概述</h3>
+<p>屏保状态机由 <code>screensaver.c</code> 管理，两个独立 Page（"Screensaver"、"BlankScreen"）承载 UI；利用 <code>lv_display_get_inactive_time()</code> 跟踪无操作时长，由 1s LVGL 定时器轮询驱动。配置读取走 SYSTEM 模型快照。</p>
+
+<h3>8.2 状态机</h3>
+<div class="diagram">
+┌────────┐  无操作≥timeout(屏保开)  ┌──────────┐  屏保≥duration  ┌────────┐
+│ NORMAL │ ───────────────────────►│SCREENSAVER│ ─────────────► │ BLANK  │
+│        │                         │          │                 │        │
+│        │ ◄────── 触摸退出 ────── │          │                 │        │
+│        │                         └──────────┘                 │        │
+│        │   无操作≥timeout(屏保关)                              │        │
+│        │ ────────────────────────────────────────────────────►│        │
+│        │                                                      │        │
+│        │ ◄──────── 触摸/wake 唤醒（wake_action=1 回首页） ──── │        │
+│        │ ◄──────── 触摸/wake 唤醒（wake_action=0 回屏保） ──── │        │
+└────────┘                                                      └────────┘
+</div>
+
+<h3>8.3 关键逻辑</h3>
+<ol>
+  <li><strong>NORMAL → SCREENSAVER/BLANK</strong>：1s 定时器检查 <code>inactive_ms ≥ screensaver_timeout * 1000</code>；屏保开启则打开 "Screensaver" 页，否则直接打开 "BlankScreen"。</li>
+  <li><strong>SCREENSAVER → BLANK</strong>：屏保页维持 <code>screensaver_duration</code> 秒后进入息屏。</li>
+  <li><strong>唤醒</strong>（screensaver_wake，触摸或 Shell `wake`）：
+    <ul>
+      <li>BLANK：先 <code>page_manager_back()</code>；<code>wake_action=1</code> 继续 <code>back_to_home()</code> + <code>home_page_reset_to_first()</code> 回首页并置 NORMAL；<code>wake_action=0</code> 回屏保页重新计时（SCREENSAVER）</li>
+      <li>SCREENSAVER：<code>page_manager_back()</code> 返回原页面，置 NORMAL</li>
+    </ul>
+  </li>
+  <li>唤醒后 <code>lv_display_trigger_activity()</code> 重置空闲计时。</li>
+</ol>
+
+<h2 id="thread"><span class="no">9</span>线程架构与业务交互</h2>
+
+<h3>9.1 线程模型</h3>
+<table>
+  <tr><th>线程</th><th>职责</th><th>槽角色</th></tr>
+  <tr><td><strong>LVGL 线程</strong>（主线程）</td><td>渲染、输入、页面导航、屏保状态机（1s 定时器）、UI 槽消费（50ms 定时器）、快照读取</td><td>g_ui_slot 唯一消费者；g_dev_slot 发送方</td></tr>
+  <tr><td><strong>DEV 线程</strong>（业务）</td><td>g_dev_slot 消费（wait+process）、Shell 解析、模型增删改（唯一写方）、按信号经 g_ui_slot 通知 UI</td><td>g_dev_slot 唯一消费者；g_ui_slot 发送方</td></tr>
+</table>
+<p>两线程<strong>不直接共享数据结构</strong>：UI 消息经 g_dev_slot 发往 DEV；DEV 的模型变更按信号经 g_ui_slot 通知 UI。所有共享结构（槽队列/订阅链表、模型仓库）由互斥锁保护；槽的消息队列与订阅表均为<strong>动态链表节点，完全无上限</strong>。</p>
+
+<h3>9.2 消息流向</h3>
+<div class="diagram">
+用户触摸 UI
+    │
+    ▼
+LVGL 线程（控件回调）
+    │  lv_slot_send(g_dev_slot, {MSG_UI_SET_PROP, object=模型, field, value})
+    ▼
+DEV 线程（slot_wait + process）
+    │  修改数据模型（唯一写方）→ Shell 输出 [UI] set ...
+    │  按状态发信号：lv_slot_send(g_ui_slot, {MSG_DEV_LIGHT_ON, object=同一模型})
+    ▼
+LVGL 线程（50ms 定时器 → slot_process(g_ui_slot)）
+    │  按 signal + object 投递给订阅页面
+    ▼
+页面回调 on_msg：object 已由槽匹配 → model_store 快照读取 → 刷新控件
+</div>
+
+<h3>9.3 设备/模型生命周期管理</h3>
+<p><strong>添加模型：</strong></p>
+<div class="flow">
+  <div class="fstep orange"><span class="fn">1</span>DEV：Shell add → 创建模型入 store（唯一 ID）</div>
+  <div class="farrow">▶</div>
+  <div class="fstep gray"><span class="fn">2</span>send(g_ui_slot, ADD_MODEL, object=模型)</div>
+  <div class="farrow">▶</div>
+  <div class="fstep"><span class="fn">3</span>Home（订阅 ADD_MODEL，object=NULL）命中：创建 tile + 设备页</div>
+  <div class="farrow">▶</div>
+  <div class="fstep green"><span class="fn">4</span>设备页 page_bind_slot(各信号, object=模型) + 记录绑定对象</div>
+</div>
+
+<p><strong>删除模型（关键：防止 UI 访问已释放的模型）：</strong></p>
+<div class="flow">
+  <div class="fstep orange"><span class="fn">1</span>DEV：send(g_ui_slot, DEL_MODEL, object=模型)（不释放）</div>
+  <div class="farrow">▶</div>
+  <div class="fstep"><span class="fn">2</span>Home on_msg（DEL_MODEL, object=NULL）：page_destroy(设备页) → 自动退订</div>
+  <div class="farrow">▶</div>
+  <div class="fstep"><span class="fn">3</span>Home 命中：移除 tile → 重排坐标 → 发送 ACK</div>
+  <div class="farrow">▶</div>
+  <div class="fstep orange"><span class="fn">4</span>DEV 收到 DEL_ACK(object=模型) → model_store_del 释放</div>
+</div>
+<blockquote><p><strong>删除时必须先销毁 UI 页面，再释放数据模型，顺序不可颠倒。</strong></p></blockquote>
+
+<h3>9.4 UI 与模型的解耦与绑定原则</h3>
+<ul>
+  <li>UI 页面按<strong>信号 + 对象</strong>订阅（<code>page_bind_slot(page, slot, signal, object)</code>），object 由槽匹配，on_msg 无需再做实例过滤</li>
+  <li>UI 读取数据时通过仓库<strong>快照接口</strong>（锁内拷贝）；DEV 线程是模型<strong>唯一写方与所有者</strong></li>
+  <li>LVGL 线程是 UI 控件唯一所有者；<code>page_destroy</code> 自动退订槽，杜绝悬垂订阅</li>
+  <li>多实例场景：3 个灯 → 3 个页面各自以模型为 object 绑定；1 个灯 → tile 页 + 信息浮层共绑同一 object，同一条信号同时命中</li>
+  <li>信号级广播：如"全屋断电"发送 <code>MSG_DEV_ALL_LIGHTS_OFF(object=NULL)</code>，订阅该信号的灯页因 NULL 双向通配命中，未订阅该信号的窗帘页不受影响；回调如需区分广播可判断 <code>msg-&gt;object == NULL</code></li>
+</ul>
+
+<h2 id="resources"><span class="no">10</span>资源清单</h2>
+<p>当前版本无图片资源；字体使用 FreeType 引擎渲染思源宋体（SourceHanSerifCN-Regular.ttf）。</p>
+
+<h2 id="freetype"><span class="no">11</span>字体引擎评估：FreeType vs TinyTTF</h2>
+
+<h3>11.1 评估背景</h3>
+<p>LVGL 9.x 内置支持两种矢量字体引擎：</p>
+<ul>
+  <li><strong>TinyTTF</strong>：基于 stb_truetype，单头文件，零外部依赖，随 LVGL 源码一同编译</li>
+  <li><strong>FreeType</strong>：独立字体渲染库，需要系统预装或交叉编译，功能完整，工业级</li>
+</ul>
+<p>box86 项目最终选用 FreeType。本章记录两者的详细评估，供后续项目选型参考。</p>
+
+<h3>11.2 代码量与集成复杂度</h3>
+<table>
+  <tr><th>指标</th><th>TinyTTF（stb_truetype）</th><th>FreeType</th></tr>
+  <tr><td>集成方式</td><td>单头文件，随 LVGL 源码编译</td><td>外部库，需安装或交叉编译</td></tr>
+  <tr><td>LVGL 集成代码量</td><td><code>lv_tiny_ttf.c</code> 约 717 行</td><td><code>lv_freetype.c</code> 等共约 1700 行</td></tr>
+  <tr><td>引擎自身代码量</td><td><code>stb_truetype_htcw.h</code> 约 5600 行（含注释）</td><td>FreeType 库本身约 20 万行（含所有模块）</td></tr>
+  <tr><td>依赖管理</td><td>无外部依赖</td><td>需要 libfreetype（共享库约 795KB）</td></tr>
+  <tr><td>CMake 配置</td><td>仅开启 <code>LV_USE_TINY_TTF</code>，无额外步骤</td><td>需配置头文件路径、链接 libfreetype</td></tr>
+  <tr><td>移植到新平台</td><td>极简，几乎零配置</td><td>需确认目标平台预装或交叉编译 freetype</td></tr>
+</table>
+<p><strong>结论</strong>：TinyTTF 集成更简单，适合快速原型；FreeType 集成复杂度较高，但可通过工程内置头文件（<code>third_party/freetype2/</code>）降低配置门槛。</p>
+
+<h3>11.3 字体格式支持</h3>
+<table>
+  <tr><th>格式</th><th>TinyTTF（stb_truetype）</th><th>FreeType</th></tr>
+  <tr><td>TTF（TrueType，glyf 轮廓）</td><td class="ok">完整支持</td><td class="ok">完整支持</td></tr>
+  <tr><td>OTF/CFF（PostScript 轮廓）</td><td>部分支持：能解析 CFF 数据结构，但光栅化路径存在断言缺陷（<code>STBTT_assert(0)</code>），实际渲染汉字时输出方块</td><td class="ok">完整支持</td></tr>
+  <tr><td>TTC（字体集合）</td><td>部分：索引获取有 @TODO 注释</td><td class="ok">完整支持</td></tr>
+  <tr><td>CJK 高字节映射（cmap format 2）</td><td>明确标注 <code>@TODO: high-byte mapping for japanese/chinese/korean</code>，汉字可能无法正确映射</td><td class="ok">完整支持</td></tr>
+  <tr><td>可变字体（Variable Fonts）</td><td>不支持</td><td class="ok">支持（FreeType 2.10+）</td></tr>
+  <tr><td>字体 Hinting</td><td>基础支持（autohint）</td><td class="ok">完整支持（TrueType hinting + autohint）</td></tr>
+  <tr><td>SVG/COLR 彩色字体</td><td>不支持</td><td class="ok">支持（需开启对应模块）</td></tr>
+</table>
+<p><strong>关键发现</strong>：box86 原使用思源宋体 OTF 格式（<code>SourceHanSerifCN-Regular.otf</code>），属于 CFF/OTF 格式。stb_truetype 虽然有 CFF 解析代码，但光栅化路径对 CJK 汉字存在 <code>STBTT_assert(0)</code> 断言，实际测试中所有汉字均渲染为方块。现已更换为同款字体的 TTF 格式（<code>SourceHanSerifCN-Regular.ttf</code>），TinyTTF 理论上可以处理，但仍建议使用 FreeType 以规避 CJK cmap 兼容性风险。</p>
+
+<h3>11.4 内存消耗</h3>
+<h4>代码段（Flash/ROM）</h4>
+<table>
+  <tr><th></th><th>TinyTTF</th><th>FreeType</th></tr>
+  <tr><td>引擎代码段（估算）</td><td>~50–80 KB（编译进可执行文件）</td><td>共享库约 795 KB；若静态链接约 300–500 KB（可通过模块裁剪）</td></tr>
+</table>
+<p>TinyTTF 作为单头文件编译进应用，没有动态库开销；FreeType 作为共享库仅在内存中加载一份，多进程可共享。</p>
+<h4>堆内存</h4>
+<table>
+  <tr><th></th><th>TinyTTF</th><th>FreeType</th></tr>
+  <tr><td>字体加载（解析字体头）</td><td>字体文件全部载入内存，汉字 TTF 约 10–20 MB</td><td>惰性加载，按需解析字形，常驻内存约 2–5 MB</td></tr>
+  <tr><td>字形缓存</td><td>依赖 LVGL 的 glyph cache（LRU）</td><td>内置缓存（Cache Manager），可精细配置</td></tr>
+  <tr><td>每字形渲染临时内存</td><td>约 1–4 KB/字形</td><td>约 2–8 KB/字形（轮廓处理更复杂）</td></tr>
+</table>
+<h4>栈内存</h4>
+<table>
+  <tr><th></th><th>TinyTTF</th><th>FreeType</th></tr>
+  <tr><td>LVGL 渲染线程栈需求</td><td>约 8–16 KB 即可（官方建议 16 KB）</td><td>官方要求最低 32 KB，建议 64 KB</td></tr>
+  <tr><td>原因</td><td>渲染逻辑简单，调用栈浅</td><td>内部模块嵌套深（hinting、outline decompose 等）</td></tr>
+</table>
+<blockquote><p>box86 工程中 <code>LV_DRAW_THREAD_STACK_SIZE</code> 已从默认值改为 <code>(64 * 1024)</code> 以满足 FreeType 需求。</p></blockquote>
+<p><strong>嵌入式 Linux 建议</strong>：RAM 紧张（&lt;32 MB）时优先 TinyTTF；RAM 充裕时 FreeType 因惰性加载反而更节省常驻内存。</p>
+
+<h3>11.5 汉字渲染速度（实测数据）</h3>
+<p>测试环境：x86-64 Linux，<code>-O2</code> 编译，字体 <code>SourceHanSerifCN-Regular.ttf</code>（12.4 MB），字号 20px。测试工具：<code>tools/font_bench.c</code>，直接调用引擎 C API，绕过 LVGL 层，每项重复 3 次取均值。</p>
+<h4>渲染耗时对比</h4>
+<table>
+  <tr><th>测试项</th><th>stb_truetype (TinyTTF)</th><th>FreeType</th><th>倍率</th></tr>
+  <tr><td>字体初始化（含文件读取）</td><td>~18,700 us</td><td>~3,300 us</td><td>FreeType 快 <strong>5.7×</strong></td></tr>
+  <tr><td>首次渲染单个汉字（U+4E2D '中'）</td><td>~17 us</td><td>~960 us</td><td>stb 快 <strong>57×</strong></td></tr>
+  <tr><td>重复渲染同字均值（1000次）</td><td>~1.7 us</td><td>~4.2 us</td><td>stb 快 <strong>2.5×</strong></td></tr>
+  <tr><td>渲染 100 个不同汉字（合计）</td><td>~730 us（均值 ~7.3 us/字）</td><td>~1,580 us（均值 ~15.8 us/字）</td><td>stb 快 <strong>2.2×</strong></td></tr>
+</table>
+<p class="note">说明：FreeType 首次渲染耗时远高于后续渲染，原因是首次调用触发字体内部模块初始化（cmap 解析、hinting 引擎初始化等），属于一次性开销。第一次运行进程时因系统页面缓存未预热，实测可达 800–1000 us；文件已缓存后约 900 us，偏差约 10%。</p>
+<h4>内存占用对比</h4>
+<table>
+  <tr><th>指标</th><th>stb_truetype</th><th>FreeType</th></tr>
+  <tr><td>字体文件加载方式</td><td>全量读入堆内存（12.4 MB）</td><td>惰性映射，仅解析表头</td></tr>
+  <tr><td>字体加载后堆增量</td><td>字体文件大小（~12,400 KB）+ 少量结构体</td><td>~7 KB</td></tr>
+  <tr><td>渲染 100 字后常驻堆</td><td>~38 KB（不含字体 buffer）</td><td>~119 KB（含字形缓存）</td></tr>
+  <tr><td>渲染线程栈需求</td><td>~8–16 KB 足够</td><td>建议 ≥ 64 KB</td></tr>
+</table>
+<p><strong>关键差异</strong>：stb_truetype 需要在初始化时把整个字体文件读入堆（思源宋体约 12 MB），而 FreeType 惰性加载，初始堆开销仅约 7 KB，但每个字形缓存的 bitmap 数据积累后常驻内存会高于 stb。</p>
+<h4>对嵌入式 Linux（如 RK3506）的推断</h4>
+<ul>
+  <li><strong>首次渲染</strong>：ARM Cortex-A7 @ 1 GHz 约为 x86 的 3–5 倍耗时，FreeType 首次渲染单字预计约 3–5 ms，stb 约 50–100 us</li>
+  <li><strong>重复渲染</strong>：两者均在 us 量级，结合 LVGL glyph cache（默认缓存 256 字形），UI 刷新时绝大多数字符命中缓存，引擎速度差异对帧率影响极小</li>
+  <li><strong>内存</strong>：嵌入式设备 RAM 通常在 64–256 MB，FreeType 的 119 KB 常驻开销可接受；stb 需要常驻 12 MB 字体 buffer，对内存敏感场景有压力</li>
+  <li>RK3506 等平台的 UI 渲染瓶颈通常是 <strong>RGA/GPU blending</strong>，字体光栅化并非瓶颈</li>
+</ul>
+
+<h3>11.6 综合对比表</h3>
+<table>
+  <tr><th>维度</th><th>TinyTTF</th><th>FreeType</th><th>胜出</th></tr>
+  <tr><td>集成复杂度</td><td>极简</td><td>中等</td><td>TinyTTF</td></tr>
+  <tr><td>外部依赖</td><td>无</td><td>libfreetype</td><td>TinyTTF</td></tr>
+  <tr><td>TTF 格式支持</td><td>完整</td><td>完整</td><td>平</td></tr>
+  <tr><td>OTF/CFF 格式支持</td><td>缺陷（汉字渲染为方块）</td><td>完整</td><td class="ok">FreeType</td></tr>
+  <tr><td>CJK 字符支持</td><td>存在已知 @TODO 缺陷</td><td>完整</td><td class="ok">FreeType</td></tr>
+  <tr><td>代码段占用</td><td>小（~80 KB）</td><td>大（~800 KB so）</td><td>TinyTTF</td></tr>
+  <tr><td>字体文件常驻内存</td><td>全量加载（思源宋体 ~12 MB）</td><td>惰性加载（~7 KB 初始）</td><td class="ok">FreeType</td></tr>
+  <tr><td>字形缓存常驻内存</td><td>低（~38 KB/100字）</td><td>中（~119 KB/100字）</td><td>TinyTTF</td></tr>
+  <tr><td>栈内存需求</td><td>低（~16 KB）</td><td>高（~64 KB）</td><td>TinyTTF</td></tr>
+  <tr><td>首次渲染单字（实测）</td><td>~17 us</td><td>~960 us</td><td>TinyTTF</td></tr>
+  <tr><td>重复渲染同字（实测）</td><td>~1.7 us</td><td>~4.2 us</td><td>TinyTTF</td></tr>
+  <tr><td>小字号渲染质量</td><td>一般（无 hinting）</td><td>优（完整 hinting）</td><td class="ok">FreeType</td></tr>
+  <tr><td>可变字体</td><td>不支持</td><td>支持</td><td class="ok">FreeType</td></tr>
+  <tr><td>嵌入式 Linux 适用性</td><td>适合 RAM &lt; 16 MB 场景</td><td>适合 RAM ≥ 32 MB 场景</td><td>视硬件</td></tr>
+</table>
+
+<h3>11.7 选型建议</h3>
+<table>
+  <tr><th>场景</th><th>推荐引擎</th><th>原因</th></tr>
+  <tr><td>仅显示 ASCII / Latin 字符</td><td>TinyTTF</td><td>无需 CJK 支持，集成简单，资源占用小</td></tr>
+  <tr><td>显示中文，字体为 TTF 格式</td><td>TinyTTF（谨慎）或 FreeType</td><td>需实测 cmap 格式是否兼容（CJK cmap format 2 有已知 @TODO）；建议直接用 FreeType 规避风险</td></tr>
+  <tr><td>显示中文，字体为 OTF/CFF 格式</td><td class="ok">FreeType</td><td>TinyTTF 存在已知光栅化缺陷，无法正确渲染</td></tr>
+  <tr><td>MCU（无 OS，RAM &lt; 8 MB）</td><td>TinyTTF</td><td>FreeType 体积过大，移植复杂</td></tr>
+  <tr><td>嵌入式 Linux（RAM ≥ 32 MB）</td><td class="ok">FreeType</td><td>系统通常预装，共享库节省整体内存，质量更高</td></tr>
+  <tr><td>对渲染质量要求高（UI 设计稿还原）</td><td class="ok">FreeType</td><td>hinting 支持，小字号清晰</td></tr>
+</table>
+<p><strong>box86 选型结论</strong>：使用 FreeType，原因如下：</p>
+<ol>
+  <li>字体文件为 TTF 格式（思源宋体），TinyTTF 理论可用，但 stb_truetype 对 CJK cmap format 2 有已知 @TODO 缺陷，存在不兼容风险</li>
+  <li>目标平台 RK3506 运行 Linux，RAM 充足，系统可预装 libfreetype</li>
+  <li>中文界面对渲染质量有要求，FreeType 的 hinting 在小字号下效果更好</li>
+</ol>
+
+<footer>
+  box86 工程设计文档 v2 · 2026-08-15 · 修订中（方案未定，禁止修改代码）<br>
+  相关文档：<a href="README.md">README.md</a>（工程说明） · <a href="TESTING.md">TESTING.md</a>（测试操作指南） · <a href="../../lvframe/设计文档.html">lvframe 框架设计文档 v2</a>
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,12 +1,16 @@
 /**
- * cct_light_page.c — 色温灯设备页
+ * @file         cct_light_page.c
+ * @brief        色温灯设备页：渐变彩虹边框 + 亮区流动动画 + 开关/色温控制
  *
- * 边框效果（参考 ref/pic_1.png）：
- *   1. 静态：四周 20px 渐变色带，HSV 色相按周长分布，内边缘渐变到透明
- *   2. 动画：点击开/关时，一个高亮"亮区"光斑沿四周顺时针流动一圈（约 800ms）
+ * @author       pochard(email@xxx.com)
+ * @version      0.1
+ * @date         2026-05-16
+ * @copyright    Copyright (c) 2026..
  */
 
 #include "device_page_internal.h"
+#include "msg.h"
+#include "slots.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -21,6 +25,12 @@
 
 /* ── 工具：高斯形亮区强度（0~255），dist 为到光斑中心的距离
  * sigma = CCT_SPOT_WIDTH/2.5，使光斑中间饱满、两端平滑渐暗 ── */
+/**
+ * @brief        计算高斯形亮区强度（0~255），dist 为到光斑中心的距离
+ *
+ * @param        dist                 到光斑中心的周长距离（像素）
+ * @return       int 亮度强度 (0~255)
+ */
 static int spot_intensity(int dist)
 {
     if (dist < 0) dist = -dist;
@@ -34,6 +44,19 @@ static int spot_intensity(int dist)
  * ── 设置 canvas 某像素的 ARGB8888 值（带 alpha）──
  * LVGL 9 的 lv_canvas_set_px 不直接支持 alpha 通道叠加，
  * 这里直接操作 draw_buf 的原始内存（ARGB8888 小端：B G R A 顺序）。
+ */
+/**
+ * @brief        直接写入 ARGB8888 draw_buf 某像素的颜色和透明度
+ *
+ * @param        buf                  draw_buf 指针
+ * @param        w                    画布宽度（像素）
+ * @param        x                    像素 x 坐标
+ * @param        y                    像素 y 坐标
+ * @param        r                    红色分量
+ * @param        g                    绿色分量
+ * @param        b                    蓝色分量
+ * @param        a                    alpha 分量
+ * @return       void
  */
 static void canvas_set_pixel_argb(lv_draw_buf_t* buf, int32_t w, int32_t x, int32_t y,
                                    uint8_t r, uint8_t g, uint8_t b, uint8_t a)
@@ -55,6 +78,12 @@ static void canvas_set_pixel_argb(lv_draw_buf_t* buf, int32_t w, int32_t x, int3
  *      d_min=0 → 外边缘（不透明），d_min=bw → 内边缘（透明）
  *   2. 色相按"最近边"的周长位置取值，角落处两边均等权重插值
  *   3. 叠加亮区光斑（若动画进行中）
+ */
+/**
+ * @brief        绘制色温灯渐变彩虹边框到 canvas（含亮区光斑叠加）
+ *
+ * @param        d                    设备页共享数据（含 cct_border_canvas/cct_spot_pos）
+ * @return       void
  */
 static void cct_draw_border(DevicePageData* d)
 {
@@ -160,6 +189,12 @@ static void cct_draw_border(DevicePageData* d)
 }
 
 /* ── 动画定时器回调 ── */
+/**
+ * @brief        色温灯边框动画定时器回调，推进亮区位置并重绘
+ *
+ * @param        timer                LVGL 定时器句柄
+ * @return       void
+ */
 static void cct_border_timer_cb(lv_timer_t* timer)
 {
     DevicePageData* d = lv_timer_get_user_data(timer);
@@ -183,6 +218,12 @@ static void cct_border_timer_cb(lv_timer_t* timer)
 }
 
 /* ── 触发亮区流动动画 ── */
+/**
+ * @brief        触发亮区流动动画（重置位置和帧计数器）
+ *
+ * @param        d                    设备页共享数据
+ * @return       void
+ */
 static void cct_start_anim(DevicePageData* d)
 {
     d->cct_spot_pos   = 0;
@@ -190,25 +231,37 @@ static void cct_start_anim(DevicePageData* d)
 }
 
 /* ── 开关按钮回调 ── */
+/**
+ * @brief        开关按钮点击回调，发送 set_prop 消息并触发亮区动画
+ *
+ * @param        e                    LVGL 事件
+ * @return       void
+ */
 static void on_toggle(lv_event_t* e)
 {
     DevicePageData* d = lv_event_get_user_data(e);
     if (!d) return;
 
     box86_cct_light_model_t snap;
-    if (box86_store_snapshot_cct(d->store, d->device_id, &snap) < 0) return;
+    if (box86_store_snapshot_cct(d->store, d->model, &snap) < 0) return;
 
-    AppMsg msg;
+    lv_slot_msg_t msg;
     memset(&msg, 0, sizeof(msg));
-    msg.type      = MSG_UI_SET_PROP;
-    msg.device_id = d->device_id;
-    msg.value     = snap.onoffsta ? 0 : 1;
+    msg.signal = MSG_UI_SET_PROP;
+    msg.object = d->model;
+    msg.arg0   = snap.onoffsta ? 0 : 1;
     strncpy(msg.field, "onoffsta", sizeof(msg.field) - 1);
-    app_bus_send_ui(d->bus, &msg);
+    lv_slot_send(&g_dev_slot, &msg);
 
     cct_start_anim(d);
 }
 
+/**
+ * @brief        色温滑块值变化回调，发送 set_prop 消息并更新标签
+ *
+ * @param        e                    LVGL 事件
+ * @return       void
+ */
 static void on_slider_cct(lv_event_t* e)
 {
     DevicePageData* d = lv_event_get_user_data(e);
@@ -216,19 +269,26 @@ static void on_slider_cct(lv_event_t* e)
 
     int val = (int)lv_slider_get_value(d->slider_cct);
 
-    AppMsg msg;
+    lv_slot_msg_t msg;
     memset(&msg, 0, sizeof(msg));
-    msg.type      = MSG_UI_SET_PROP;
-    msg.device_id = d->device_id;
-    msg.value     = val;
+    msg.signal = MSG_UI_SET_PROP;
+    msg.object = d->model;
+    msg.arg0   = val;
     strncpy(msg.field, "color_temp", sizeof(msg.field) - 1);
-    app_bus_send_ui(d->bus, &msg);
+    lv_slot_send(&g_dev_slot, &msg);
 
     char buf[16];
     snprintf(buf, sizeof(buf), "%dK", val);
     lv_label_set_text(d->lbl_cct, buf);
 }
 
+/**
+ * @brief        构建色温灯设备页 UI 及渐变边框 canvas
+ *
+ * @param        root                 页面根容器
+ * @param        d                    设备页共享数据
+ * @return       void
+ */
 void cct_light_page_build(lv_obj_t* root, DevicePageData* d)
 {
     lv_obj_set_size(root, LV_PCT(100), LV_PCT(100));
@@ -285,10 +345,16 @@ void cct_light_page_build(lv_obj_t* root, DevicePageData* d)
     d->cct_border_timer = lv_timer_create(cct_border_timer_cb, CCT_ANIM_TICK_MS, d);
 }
 
+/**
+ * @brief        刷新色温灯设备页数据（名称/开关状态/色温值）
+ *
+ * @param        d                    设备页共享数据
+ * @return       void
+ */
 void cct_light_page_refresh(DevicePageData* d)
 {
     box86_cct_light_model_t snap;
-    if (box86_store_snapshot_cct(d->store, d->device_id, &snap) < 0) return;
+    if (box86_store_snapshot_cct(d->store, d->model, &snap) < 0) return;
     lv_label_set_text(d->lbl_name, snap.base.name);
     lv_label_set_text(d->lbl_status, snap.onoffsta ? "ON" : "OFF");
     lv_slider_set_value(d->slider_cct, snap.color_temp, LV_ANIM_OFF);
@@ -297,6 +363,12 @@ void cct_light_page_refresh(DevicePageData* d)
     lv_label_set_text(d->lbl_cct, buf);
 }
 
+/**
+ * @brief        销毁色温灯设备页，释放定时器和绘图缓冲
+ *
+ * @param        d                    设备页共享数据
+ * @return       void
+ */
 void cct_light_page_destroy(DevicePageData* d)
 {
     if (d->cct_border_timer) {

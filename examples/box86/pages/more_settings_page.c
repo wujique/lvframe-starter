@@ -1,15 +1,25 @@
+/**
+ * @file         more_settings_page.c
+ * @brief        屏保详细设置页实现：屏保开关/待机时间/维持时间/唤醒行为
+ *
+ * @author       pochard(email@xxx.com)
+ * @version      0.1
+ * @date         2026-05-16
+ * @copyright    Copyright (c) 2026..
+ */
+
 #include "more_settings_page.h"
-#include "models/device_store.h"
+#include "models/model_store.h"
 #include "lvframe/page.h"
 #include "lvframe/page_manager.h"
-#include "app_bus.h"
+#include "msg.h"
+#include "slots.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
 typedef struct {
-    AppBus*              bus;
-    lv_device_store_t*   store;
+    model_store_t*       store;
     lv_obj_t*            sw_saver;
     lv_obj_t*            slider_timeout;
     lv_obj_t*            lbl_timeout;
@@ -19,18 +29,34 @@ typedef struct {
     lv_obj_t*            lbl_wake_action;
 } MoreSettingsData;
 
+static void refresh_settings(MoreSettingsData* d);
+
+/**
+ * @brief        发送系统属性设置消息到业务层
+ *
+ * @param        d                    页面私有数据
+ * @param        field                属性字段名
+ * @param        value                属性新值
+ * @return       void
+ */
 static void send_system_set(MoreSettingsData* d, const char* field, int value)
 {
-    AppMsg msg;
+    lv_slot_msg_t msg;
     memset(&msg, 0, sizeof(msg));
-    msg.type      = MSG_UI_SET_SYSTEM;
-    msg.device_id = -1;
-    msg.value     = value;
+    msg.signal = MSG_UI_SET_SYSTEM;
+    msg.object = model_store_get_system(d->store);
+    msg.arg0   = value;
     strncpy(msg.field, field, sizeof(msg.field) - 1);
-    app_bus_send_ui(d->bus, &msg);
+    lv_slot_send(&g_dev_slot, &msg);
 }
 
 /* ── 屏保开关 ── */
+/**
+ * @brief        屏保开关按钮点击回调，切换屏保启用状态
+ *
+ * @param        e                    LVGL 事件
+ * @return       void
+ */
 static void on_saver_toggle(lv_event_t* e)
 {
     MoreSettingsData* d = lv_event_get_user_data(e);
@@ -48,6 +74,12 @@ static void on_saver_toggle(lv_event_t* e)
 }
 
 /* ── 待机时间滑块 ── */
+/**
+ * @brief        待机时间滑块值变化回调，更新标签并发送消息
+ *
+ * @param        e                    LVGL 事件
+ * @return       void
+ */
 static void on_timeout_changed(lv_event_t* e)
 {
     MoreSettingsData* d = lv_event_get_user_data(e);
@@ -59,6 +91,12 @@ static void on_timeout_changed(lv_event_t* e)
 }
 
 /* ── 屏保维持滑块 ── */
+/**
+ * @brief        屏保维持时间滑块值变化回调，更新标签并发送消息
+ *
+ * @param        e                    LVGL 事件
+ * @return       void
+ */
 static void on_duration_changed(lv_event_t* e)
 {
     MoreSettingsData* d = lv_event_get_user_data(e);
@@ -70,6 +108,12 @@ static void on_duration_changed(lv_event_t* e)
 }
 
 /* ── 唤醒行为切换 ── */
+/**
+ * @brief        唤醒行为切换按钮回调，在"返回首页"和"返回屏保"间切换
+ *
+ * @param        e                    LVGL 事件
+ * @return       void
+ */
 static void on_wake_action_clicked(lv_event_t* e)
 {
     MoreSettingsData* d = lv_event_get_user_data(e);
@@ -81,17 +125,29 @@ static void on_wake_action_clicked(lv_event_t* e)
 }
 
 /* ── 返回按钮 ── */
+/**
+ * @brief        返回按钮点击回调，调用 page_manager_back() 返回上一页
+ *
+ * @param        e                    LVGL 事件
+ * @return       void
+ */
 static void on_back_clicked(lv_event_t* e)
 {
     (void)e;
     page_manager_back();
 }
 
+/**
+ * @brief        页面创建回调，构建屏保详细设置 UI
+ *
+ * @param        page                 当前页面句柄
+ * @param        params               MoreSettingsPageParams* 创建参数
+ * @return       void
+ */
 static void on_create(Page* page, void* params)
 {
     MoreSettingsPageParams* p = (MoreSettingsPageParams*)params;
     MoreSettingsData* d = calloc(1, sizeof(MoreSettingsData));
-    d->bus   = p->bus;
     d->store = p->store;
     page_set_user_data(page, d);
 
@@ -162,6 +218,17 @@ static void on_create(Page* page, void* params)
     lv_obj_add_event_cb(d->btn_wake_action, on_wake_action_clicked, LV_EVENT_CLICKED, d);
 
     /* 刷新显示当前值 */
+    refresh_settings(d);
+
+    /* 订阅系统刷新信号 */
+    page_bind_slot(page, &g_ui_slot, MSG_DEV_REFRESH_SYS, NULL);
+}
+
+/**
+ * @brief        从 SYSTEM 模型快照刷新控件
+ */
+static void refresh_settings(MoreSettingsData* d)
+{
     box86_system_model_t sys;
     box86_store_snapshot_system(d->store, &sys);
     if (sys.screensaver_enabled) {
@@ -183,17 +250,38 @@ static void on_create(Page* page, void* params)
     lv_label_set_text(d->lbl_wake_action, sys.wake_action ? "唤醒: 返回首页" : "唤醒: 返回屏保");
 }
 
+static void on_msg(Page* page, const lv_slot_msg_t* msg)
+{
+    (void)msg;
+    MoreSettingsData* d = page_get_user_data(page);
+    if (!d) return;
+    refresh_settings(d);
+}
+
+/**
+ * @brief        页面销毁回调，释放私有数据堆内存
+ *
+ * @param        page                 当前页面句柄
+ * @return       void
+ */
 static void on_destroy(Page* page)
 {
     MoreSettingsData* d = page_get_user_data(page);
     if (d) free(d);
 }
 
+/**
+ * @brief        供 page_manager 注册使用的页面工厂函数
+ *
+ * @param        params               MoreSettingsPageParams* 创建参数
+ * @return       Page* 新创建的页面对象
+ */
 Page* more_settings_page_creator(void* params)
 {
     static PageLifecycle lc = {
         .on_create  = on_create,
         .on_destroy = on_destroy,
+        .on_msg     = on_msg,
     };
     return page_create(&lc, params);
 }

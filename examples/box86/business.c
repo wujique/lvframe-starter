@@ -1,6 +1,18 @@
+/**
+ * @file         business.c
+ * @brief        业务逻辑线程：消费 g_dev_slot、解析 Shell 命令，经 g_ui_slot 通知 UI
+ *
+ * @author       pochard(email@xxx.com)
+ * @version      0.2
+ * @date         2026-08-15
+ * @copyright    Copyright (c) 2026..
+ */
 #define _POSIX_C_SOURCE 200809L
 #include "business.h"
-#include "models/device_model.h"
+#include "msg.h"
+#include "models/model_base.h"
+#include "models/model_store.h"
+#include "screensaver.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -19,56 +31,93 @@ static void shell_log(const char* fmt, ...)
     fflush(stdout);
 }
 
-/* ── 处理来自 UI 的消息 ── */
-static void handle_ui_msg(Business* biz, const AppMsg* msg)
+/**
+ * @brief        设置设备属性并按其类型发送对应刷新信号
+ */
+static void biz_set_device_prop(Business* biz, void* model, const char* field, int value)
 {
-    switch (msg->type) {
+    model_base_t* base = (model_base_t*)model;
+    if (!base || !base->valid) return;
+
+    int signal = 0;
+    int onoff = (strcmp(field, "onoffsta") == 0);
+
+    if (base->type == MODEL_TYPE_LIGHT) {
+        box86_store_set_light_prop(biz->store, model, field, value);
+        if (onoff) {
+            box86_light_model_t s;
+            box86_store_snapshot_light(biz->store, model, &s);
+            signal = s.onoffsta ? MSG_DEV_LIGHT_ON : MSG_DEV_LIGHT_OFF;
+        }
+    } else if (base->type == MODEL_TYPE_CCT) {
+        box86_store_set_cct_prop(biz->store, model, field, value);
+        if (onoff) {
+            box86_cct_light_model_t s;
+            box86_store_snapshot_cct(biz->store, model, &s);
+            signal = s.onoffsta ? MSG_DEV_LIGHT_ON : MSG_DEV_LIGHT_OFF;
+        } else if (strcmp(field, "color_temp") == 0) {
+            signal = MSG_DEV_CCT_TEMP;
+        }
+    } else if (base->type == MODEL_TYPE_CURTAIN) {
+        box86_store_set_curtain_prop(biz->store, model, field, value);
+        signal = MSG_DEV_CURTAIN_POS;
+    }
+
+    if (signal) {
+        lv_slot_msg_t ev;
+        memset(&ev, 0, sizeof(ev));
+        ev.signal = signal;
+        ev.object = model;
+        lv_slot_send(biz->ui_slot, &ev);
+    }
+}
+
+/**
+ * @brief        处理来自 UI 线程的消息
+ */
+static void handle_ui_msg(Business* biz, const lv_slot_msg_t* msg)
+{
+    switch (msg->signal) {
     case MSG_UI_SET_PROP: {
-        /* 按设备类型分发 */
-        lv_device_base_t bases[LV_MAX_DEVICES];
-        int order[LV_MAX_DEVICES], count = 0;
-        lv_device_store_snapshot_base(biz->store, bases, order, &count);
-        int dtype = BOX86_DEVICE_TYPE_LIGHT;
-        for (int i = 0; i < count; i++) if (bases[i].id == msg->device_id) { dtype = bases[i].type; break; }
-
-        if      (dtype == BOX86_DEVICE_TYPE_LIGHT)   box86_store_set_light_prop(biz->store, msg->device_id, msg->field, msg->value);
-        else if (dtype == BOX86_DEVICE_TYPE_CCT)     box86_store_set_cct_prop(biz->store, msg->device_id, msg->field, msg->value);
-        else if (dtype == BOX86_DEVICE_TYPE_CURTAIN) box86_store_set_curtain_prop(biz->store, msg->device_id, msg->field, msg->value);
-
-        shell_log("[UI] set %d %s %d\n", msg->device_id, msg->field, msg->value);
-
-        /* 通知 UI 刷新该设备页面 */
-        AppMsg refresh = {0};
-        refresh.type      = MSG_BIZ_REFRESH;
-        refresh.device_id = msg->device_id;
-        app_bus_send_biz(biz->bus, &refresh);
+        model_base_t* base = (model_base_t*)msg->object;
+        biz_set_device_prop(biz, msg->object, msg->field, msg->arg0);
+        if (base) shell_log("[UI] set %d %s %d\n", base->id, msg->field, msg->arg0);
         break;
     }
-    case MSG_UI_SET_SYSTEM:
-        box86_store_set_system(biz->store, msg->field, msg->value);
-        shell_log("[UI] set system %s %d\n", msg->field, msg->value);
+    case MSG_UI_SET_SYSTEM: {
+        box86_store_set_system(biz->store, msg->field, msg->arg0);
+        shell_log("[UI] set system %s %d\n", msg->field, msg->arg0);
 
-        /* 通知 UI 刷新系统设置页面 */
-        {
-            AppMsg refresh = {0};
-            refresh.type = MSG_BIZ_REFRESH_SYS;
-            app_bus_send_biz(biz->bus, &refresh);
-        }
+        lv_slot_msg_t ev;
+        memset(&ev, 0, sizeof(ev));
+        ev.signal = MSG_DEV_REFRESH_SYS;
+        ev.object = model_store_get_system(biz->store);
+        lv_slot_send(biz->ui_slot, &ev);
         break;
-    case MSG_UI_DEL_ACK:
-        /* UI 已销毁页面，现在可以安全删除模型 */
-        lv_device_store_del(biz->store, msg->device_id);
-        shell_log("[BIZ] device %d model freed\n", msg->device_id);
+    }
+    case MSG_UI_DEL_ACK: {
+        model_store_del(biz->store, msg->object);
+        shell_log("[BIZ] model freed\n");
         break;
+    }
     default:
         break;
     }
 }
 
-/* ── Shell 命令解析 ── */
+/**
+ * @brief        g_dev_slot 订阅回调：把消息转给 handle_ui_msg
+ */
+static void biz_msg_handler(void* ctx, const lv_slot_msg_t* msg)
+{
+    handle_ui_msg((Business*)ctx, msg);
+}
+
+/**
+ * @brief        解析并执行 Shell 命令行
+ */
 static void handle_shell_cmd(Business* biz, char* line)
 {
-    /* 去掉末尾换行 */
     size_t len = strlen(line);
     if (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) line[--len] = '\0';
     if (len == 0) return;
@@ -76,31 +125,29 @@ static void handle_shell_cmd(Business* biz, char* line)
     char cmd[16] = {0};
     sscanf(line, "%15s", cmd);
 
-    AppMsg msg = {0};
-
     /* list */
     if (strcmp(cmd, "list") == 0) {
-        lv_device_base_t bases[LV_MAX_DEVICES];
-        int order[LV_MAX_DEVICES], count = 0;
-        lv_device_store_snapshot_base(biz->store, bases, order, &count);
+        void* models[MODEL_STORE_MAX];
+        int count = 0;
+        model_store_snapshot_ordered(biz->store, models, &count);
         shell_log("%-4s %-12s %-10s %s\n", "ID", "类型", "名称", "状态");
         for (int i = 0; i < count; i++) {
-            lv_device_base_t* b = &bases[order[i]];
+            model_base_t* b = (model_base_t*)models[i];
             const char* type_str =
-                b->type == BOX86_DEVICE_TYPE_LIGHT   ? "light" :
-                b->type == BOX86_DEVICE_TYPE_CCT     ? "cct_light" : "curtain";
-            if (b->type == BOX86_DEVICE_TYPE_CURTAIN) {
+                b->type == MODEL_TYPE_LIGHT ? "light" :
+                b->type == MODEL_TYPE_CCT   ? "cct_light" : "curtain";
+            if (b->type == MODEL_TYPE_CURTAIN) {
                 box86_curtain_model_t snap;
-                box86_store_snapshot_curtain(biz->store, b->id, &snap);
+                box86_store_snapshot_curtain(biz->store, models[i], &snap);
                 shell_log("%-4d %-12s %-10s pos=%d\n", b->id, type_str, b->name, snap.position);
-            } else if (b->type == BOX86_DEVICE_TYPE_CCT) {
+            } else if (b->type == MODEL_TYPE_CCT) {
                 box86_cct_light_model_t snap;
-                box86_store_snapshot_cct(biz->store, b->id, &snap);
+                box86_store_snapshot_cct(biz->store, models[i], &snap);
                 shell_log("%-4d %-12s %-10s %s cct=%d\n", b->id, type_str, b->name,
                           snap.onoffsta ? "on" : "off", snap.color_temp);
             } else {
                 box86_light_model_t snap;
-                box86_store_snapshot_light(biz->store, b->id, &snap);
+                box86_store_snapshot_light(biz->store, models[i], &snap);
                 shell_log("%-4d %-12s %-10s %s\n", b->id, type_str, b->name,
                           snap.onoffsta ? "on" : "off");
             }
@@ -108,7 +155,7 @@ static void handle_shell_cmd(Business* biz, char* line)
         return;
     }
 
-    /* get system */
+    /* get system / get <id> */
     if (strcmp(cmd, "get") == 0) {
         char target[16] = {0};
         sscanf(line, "%*s %15s", target);
@@ -121,20 +168,17 @@ static void handle_shell_cmd(Business* biz, char* line)
                       sys.screensaver_duration, sys.wake_action);
         } else {
             int id = atoi(target);
-            lv_device_base_t bases[LV_MAX_DEVICES];
-            int order[LV_MAX_DEVICES], count = 0;
-            lv_device_store_snapshot_base(biz->store, bases, order, &count);
-            lv_device_base_t* b = NULL;
-            for (int i = 0; i < count; i++) if (bases[i].id == id) { b = &bases[i]; break; }
-            if (!b) { shell_log("error: device %d not found\n", id); return; }
-            if (b->type == BOX86_DEVICE_TYPE_CURTAIN) {
-                box86_curtain_model_t snap; box86_store_snapshot_curtain(biz->store, id, &snap);
+            void* model = model_store_get_by_id(biz->store, id);
+            if (!model) { shell_log("error: device %d not found\n", id); return; }
+            model_base_t* b = (model_base_t*)model;
+            if (b->type == MODEL_TYPE_CURTAIN) {
+                box86_curtain_model_t snap; box86_store_snapshot_curtain(biz->store, model, &snap);
                 shell_log("id=%d name=%s pos=%d\n", id, b->name, snap.position);
-            } else if (b->type == BOX86_DEVICE_TYPE_CCT) {
-                box86_cct_light_model_t snap; box86_store_snapshot_cct(biz->store, id, &snap);
+            } else if (b->type == MODEL_TYPE_CCT) {
+                box86_cct_light_model_t snap; box86_store_snapshot_cct(biz->store, model, &snap);
                 shell_log("id=%d name=%s onoff=%d cct=%d\n", id, b->name, snap.onoffsta, snap.color_temp);
             } else {
-                box86_light_model_t snap; box86_store_snapshot_light(biz->store, id, &snap);
+                box86_light_model_t snap; box86_store_snapshot_light(biz->store, model, &snap);
                 shell_log("id=%d name=%s onoff=%d\n", id, b->name, snap.onoffsta);
             }
         }
@@ -143,7 +187,7 @@ static void handle_shell_cmd(Business* biz, char* line)
 
     /* add <type> <name> */
     if (strcmp(cmd, "add") == 0) {
-        char type_str[16] = {0}, name[LV_DEVICE_NAME_MAX] = {0};
+        char type_str[16] = {0}, name[MODEL_NAME_MAX] = {0};
         sscanf(line, "%*s %15s %31[^\n]", type_str, name);
         int new_id = -1;
         if      (strcmp(type_str, "light")     == 0) new_id = box86_store_add_light(biz->store, name);
@@ -154,11 +198,12 @@ static void handle_shell_cmd(Business* biz, char* line)
         if (new_id < 0) { shell_log("error: max devices reached\n"); return; }
         shell_log("added device id=%d\n", new_id);
 
-        msg.type      = MSG_BIZ_ADD_DEVICE;
-        msg.device_id = new_id;
-        shell_log("[BIZ] Sending MSG_BIZ_ADD_DEVICE for device_id=%d\n", new_id);
-        int ret = app_bus_send_biz(biz->bus, &msg);
-        shell_log("[BIZ] app_bus_send_biz returned %d\n", ret);
+        void* model = model_store_get_by_id(biz->store, new_id);
+        lv_slot_msg_t ev;
+        memset(&ev, 0, sizeof(ev));
+        ev.signal = MSG_DEV_ADD_MODEL;
+        ev.object = model;
+        lv_slot_send(biz->ui_slot, &ev);
         return;
     }
 
@@ -166,10 +211,13 @@ static void handle_shell_cmd(Business* biz, char* line)
     if (strcmp(cmd, "del") == 0) {
         int id = 0;
         sscanf(line, "%*s %d", &id);
-        /* 先通知 UI 销毁页面；模型在收到 MSG_UI_DEL_ACK 后再释放 */
-        msg.type      = MSG_BIZ_DEL_DEVICE;
-        msg.device_id = id;
-        app_bus_send_biz(biz->bus, &msg);
+        void* model = model_store_get_by_id(biz->store, id);
+        if (!model) { shell_log("error: device %d not found\n", id); return; }
+        lv_slot_msg_t ev;
+        memset(&ev, 0, sizeof(ev));
+        ev.signal = MSG_DEV_DEL_MODEL;
+        ev.object = model;
+        lv_slot_send(biz->ui_slot, &ev);
         return;
     }
 
@@ -177,11 +225,16 @@ static void handle_shell_cmd(Business* biz, char* line)
     if (strcmp(cmd, "move") == 0) {
         int id = 0, pos = 0;
         sscanf(line, "%*s %d %d", &id, &pos);
-        lv_device_store_move(biz->store, id, pos);
-        msg.type      = MSG_BIZ_MOVE_DEVICE;
-        msg.device_id = id;
-        msg.new_pos   = pos;
-        app_bus_send_biz(biz->bus, &msg);
+        void* model = model_store_get_by_id(biz->store, id);
+        if (!model) { shell_log("error: device %d not found\n", id); return; }
+        model_store_move(biz->store, model, pos);
+
+        lv_slot_msg_t ev;
+        memset(&ev, 0, sizeof(ev));
+        ev.signal = MSG_DEV_MOVE_MODEL;
+        ev.object = model;
+        ev.arg0 = pos;
+        lv_slot_send(biz->ui_slot, &ev);
         return;
     }
 
@@ -194,12 +247,18 @@ static void handle_shell_cmd(Business* biz, char* line)
             int value = atoi(val_str);
             box86_store_set_system(biz->store, field, value);
             shell_log("system %s=%d\n", field, value);
-            msg.type = MSG_BIZ_REFRESH_SYS;
-            app_bus_send_biz(biz->bus, &msg);
+
+            lv_slot_msg_t ev;
+            memset(&ev, 0, sizeof(ev));
+            ev.signal = MSG_DEV_REFRESH_SYS;
+            ev.object = model_store_get_system(biz->store);
+            lv_slot_send(biz->ui_slot, &ev);
         } else {
             int id = atoi(target);
+            void* model = model_store_get_by_id(biz->store, id);
+            if (!model) { shell_log("error: device %d not found\n", id); return; }
+
             int value = 0;
-            /* command 字段特殊处理 */
             if (strcmp(field, "command") == 0) {
                 if      (strcmp(val_str, "OPEN")  == 0) value = BOX86_CURTAIN_CMD_OPEN;
                 else if (strcmp(val_str, "CLOSE") == 0) value = BOX86_CURTAIN_CMD_CLOSE;
@@ -207,30 +266,26 @@ static void handle_shell_cmd(Business* biz, char* line)
             } else {
                 value = atoi(val_str);
             }
-            /* 按设备类型分发 set_prop */
-            lv_device_base_t bases[LV_MAX_DEVICES];
-            int order2[LV_MAX_DEVICES], count2 = 0;
-            lv_device_store_snapshot_base(biz->store, bases, order2, &count2);
-            int dtype = BOX86_DEVICE_TYPE_LIGHT;
-            for (int i = 0; i < count2; i++) if (bases[i].id == id) { dtype = bases[i].type; break; }
 
-            int ret = -1;
-            if      (dtype == BOX86_DEVICE_TYPE_LIGHT)   ret = box86_store_set_light_prop(biz->store, id, field, value);
-            else if (dtype == BOX86_DEVICE_TYPE_CCT)     ret = box86_store_set_cct_prop(biz->store, id, field, value);
-            else if (dtype == BOX86_DEVICE_TYPE_CURTAIN) ret = box86_store_set_curtain_prop(biz->store, id, field, value);
-
-            if (ret < 0) { shell_log("error: invalid field or device\n"); return; }
+            model_base_t* b = (model_base_t*)model;
+            if (strcmp(field, "onoffsta") == 0) {
+                biz_set_device_prop(biz, model, field, value);
+            } else if (strcmp(field, "color_temp") == 0 && b->type == MODEL_TYPE_CCT) {
+                biz_set_device_prop(biz, model, field, value);
+            } else if ((strcmp(field, "position") == 0 || strcmp(field, "command") == 0) &&
+                       b->type == MODEL_TYPE_CURTAIN) {
+                biz_set_device_prop(biz, model, field, value);
+            } else {
+                shell_log("error: invalid field or device\n");
+                return;
+            }
             shell_log("device %d %s=%d\n", id, field, value);
-            msg.type      = MSG_BIZ_REFRESH;
-            msg.device_id = id;
-            app_bus_send_biz(biz->bus, &msg);
         }
         return;
     }
 
     /* wake — 模拟触摸唤醒 */
     if (strcmp(cmd, "wake") == 0) {
-        extern void screensaver_wake(void);
         screensaver_wake();
         shell_log("wake triggered\n");
         return;
@@ -240,47 +295,50 @@ static void handle_shell_cmd(Business* biz, char* line)
     shell_log("commands: list | get <id|system> | add <type> <name> | del <id> | move <id> <pos> | set <id|system> <field> <value> | wake\n");
 }
 
-/* ── 业务线程主循环 ── */
+/**
+ * @brief        业务逻辑线程主循环：交替消费 g_dev_slot 与 Shell 输入
+ */
 static void business_thread(void* arg)
 {
     Business* biz = (Business*)arg;
     char line[256];
 
     while (biz->running) {
-        /* 处理来自 UI 的消息（非阻塞） */
-        AppMsg msg;
-        while (app_bus_recv_ui(biz->bus, &msg)) {
-            handle_ui_msg(biz, &msg);
-        }
+        /* 消费来自 UI 的消息（非阻塞批量处理） */
+        lv_slot_process(biz->dev_slot);
 
         /* 非阻塞读取 Shell 输入 */
         fd_set fds;
         struct timeval tv;
-        
         FD_ZERO(&fds);
-        FD_SET(0, &fds); /* stdin 文件描述符 0 */
+        FD_SET(0, &fds); /* stdin */
         tv.tv_sec = 0;
         tv.tv_usec = 10000; /* 10ms 超时 */
-        
+
         int ret = select(1, &fds, NULL, NULL, &tv);
         if (ret > 0 && FD_ISSET(0, &fds)) {
             if (fgets(line, sizeof(line), stdin)) {
                 handle_shell_cmd(biz, line);
             }
         }
-        
-        /* 短暂休眠避免 CPU 占用过高 */
+
         lv_sleep_ms(5);
     }
 }
 
-void business_init(Business* biz, AppBus* bus, lv_device_store_t* store)
+void business_init(Business* biz, lv_slot_t* dev_slot, lv_slot_t* ui_slot, model_store_t* store)
 {
-    memset(biz, 0, sizeof(Business));
-    biz->bus   = bus;
-    biz->store = store;
-    
-    /* 设置 stdout 为无缓冲，确保 shell 输出立即显示 */
+    memset(biz, 0, sizeof(*biz));
+    biz->dev_slot = dev_slot;
+    biz->ui_slot  = ui_slot;
+    biz->store    = store;
+
+    /* 业务逻辑订阅 g_dev_slot（object=NULL 全收），由 DEV 线程消费分发 */
+    lv_slot_subscribe(dev_slot, MSG_UI_SET_PROP,  NULL, biz_msg_handler, biz);
+    lv_slot_subscribe(dev_slot, MSG_UI_SET_SYSTEM, NULL, biz_msg_handler, biz);
+    lv_slot_subscribe(dev_slot, MSG_UI_DEL_ACK,   NULL, biz_msg_handler, biz);
+
+    /* stdout 无缓冲，确保 shell 输出立即显示 */
     setvbuf(stdout, NULL, _IONBF, 0);
 }
 

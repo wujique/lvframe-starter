@@ -1,10 +1,23 @@
 /**
- * tileview_impl.c - 基于 lv_tileview 的滑动容器实现（适配 LVGL v9.4）
+ * @file         tileview_impl.c
+ * @brief        基于 lv_tileview 的滑动容器实现（适配 LVGL v9.4），
+ *               通过 SwipeContainerOps 注册到滑动容器抽象层
+ *
+ * @author       pochard(email@xxx.com)
+ * @version      0.1
+ * @date         2026-05-16
+ * @copyright    Copyright (c) 2026..
  */
 
 #include "../swipe_container.h"
 #include <stdio.h>
 
+/**
+ * @brief        创建基于 lv_tileview 的滑动容器，并将 ops 存入 user_data
+ *
+ * @param        parent               父 LVGL 对象
+ * @return       lv_obj_t* 创建的 tileview 对象
+ */
 static lv_obj_t* tileview_create(lv_obj_t* parent) {
     lv_obj_t* tv = lv_tileview_create(parent);
 
@@ -19,6 +32,13 @@ static lv_obj_t* tileview_create(lv_obj_t* parent) {
     return tv;
 }
 
+/**
+ * @brief        在 tileview 末尾追加一个新 tile 页并配置样式
+ *
+ * @param        container            tileview 容器对象
+ * @param        index                逻辑页索引（当前实现中忽略，使用当前子对象数量作为列号）
+ * @return       lv_obj_t* 新建 tile 对象，失败返回 NULL
+ */
 static lv_obj_t* tileview_add_page(lv_obj_t* container, int index) {
     /* v9.4: lv_tileview_add_tile 签名不变，但 col_id 用当前 tile 数量 */
     printf("[TileView] tileview_add_page: container=%p, index=%d\n", container, index);
@@ -43,6 +63,13 @@ static lv_obj_t* tileview_add_page(lv_obj_t* container, int index) {
     return tile;
 }
 
+/**
+ * @brief        移除 tileview 中指定索引的 tile，并重排剩余 tile 的列坐标
+ *
+ * @param        container            tileview 容器对象
+ * @param        index                要移除的 tile 子对象索引
+ * @return       void
+ */
 static void tileview_remove_page(lv_obj_t* container, int index) {
     /* v9.4: lv_obj_get_child(obj, index) 直接按索引取子对象 */
     uint32_t count = lv_obj_get_child_count(container);
@@ -64,11 +91,24 @@ static void tileview_remove_page(lv_obj_t* container, int index) {
     }
 }
 
+/**
+ * @brief        切换 tileview 到指定列索引的 tile，带动画
+ *
+ * @param        container            tileview 容器对象
+ * @param        index                目标 tile 列索引
+ * @return       void
+ */
 static void tileview_switch_to(lv_obj_t* container, int index) {
     /* v9.4: lv_tileview_set_tile_by_index(tv, col, row, anim) */
     lv_tileview_set_tile_by_index(container, (uint32_t)index, 0, LV_ANIM_ON);
 }
 
+/**
+ * @brief        获取 tileview 当前激活 tile 的索引
+ *
+ * @param        container            tileview 容器对象
+ * @return       int 当前 tile 索引，无激活 tile 时返回 0
+ */
 static int tileview_get_current(lv_obj_t* container) {
     /* v9.4: lv_tileview_get_tile_active 返回当前 tile 对象，再取其索引 */
     lv_obj_t* active = lv_tileview_get_tile_active(container);
@@ -76,10 +116,17 @@ static int tileview_get_current(lv_obj_t* container) {
     return (int)lv_obj_get_index(active);
 }
 
+/**
+ * @brief        获取 tileview 中的 tile 总数
+ *
+ * @param        container            tileview 容器对象
+ * @return       int tile 总数
+ */
 static int tileview_get_count(lv_obj_t* container) {
     return (int)lv_obj_get_child_count(container);
 }
 
+/** tileview 实现的操作接口，注册到滑动容器抽象层时使用 */
 SwipeContainerOps g_tileview_ops = {
     .create      = tileview_create,
     .add_page    = tileview_add_page,
